@@ -24,6 +24,17 @@ header { display: flex; flex-wrap: wrap; gap: 4px 20px; align-items: baseline; m
 h1 { font: 700 32px/1 var(--display); letter-spacing: .01em; margin: 0; text-wrap: balance }
 header .sub { color: var(--muted); font-size: 13px; min-width: 0 }
 #status { font-size: 13px; color: var(--muted); margin-left: auto }
+#persist { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); }
+#persist.db { color: var(--ok); border-color: #b7e0c8; background: #eef8f2; }
+#persist.local { color: #8a5a10; border-color: #f0d7a2; background: #fff8e8; }
+#persist.readonly { color: var(--cut); border-color: #f0c2b8; background: #fdf2ef; }
+#signout[hidden], #gate[hidden], #outcomelabel[hidden], #gatepwlabel[hidden] { display: none; }
+#gate { position: fixed; inset: 0; z-index: 80; background: rgba(27, 35, 48, .45); display: flex; align-items: center; justify-content: center; padding: 20px; }
+#gate form { width: min(420px, 100%); background: var(--panel); border-radius: var(--r); box-shadow: var(--shadow); padding: 22px; display: grid; gap: 10px; }
+#gate h2 { font: 700 28px/1 var(--display); margin: 0; color: var(--fg); letter-spacing: 0; text-transform: none; }
+#gate label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+#gate input, #gate select { width: 100%; font: 14px var(--body); text-align: left; padding: 8px; }
+#gate .err { color: var(--err); margin: 0; min-height: 1.2em; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 18px }
 .card h2, .panel h2 { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .1em; margin: 0 0 10px; color: var(--muted) }
 .cardhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px } .cardhead h2 { margin: 0 }
@@ -188,6 +199,8 @@ td.num { font-family: var(--mono); font-size: 12.5px }
   <h1 id="jobtitle">Earthwork Takeoff Studio</h1>
   <span class="sub" id="jobsub">Drop a plan set; get stripping, cut, fill and subgrade quantities</span>
   <span id="status">Loading&hellip;</span>
+  <span id="persist" hidden></span>
+  <button id="signout" type="button" class="quiet" hidden>Sign out</button>
 </header>
 
 <div class="card">
@@ -199,7 +212,7 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       <label class="dropzone" id="dropzone" tabindex="0">
         <strong>Drop the civil plan set and the geotech report</strong>
         <span>PDFs straight from CAD (not scans). The app finds the grading and site sheets, reads the contours, spot grades, FFE, paving and the geotech notes, and builds the takeoff. CAD surfaces (LandXML, DXF, points) and area files are accepted too.</span>
-        <span class="hint" style="margin:0">Everything runs in this page. Nothing is uploaded anywhere.</span>
+        <span class="hint" style="margin:0">On a copy with no server, such as GitHub Pages, the takeoff stays in this browser. Opened from the WPM server, it is saved to the company database.</span>
         <input type="file" id="dropinput" accept=".pdf,.xml,.dxf,.csv,.txt,.xyz,.json,.geojson" multiple>
       </label>
       <div class="files" id="files"></div>
@@ -348,6 +361,7 @@ td.num { font-family: var(--mono); font-size: 12.5px }
     <div class="ctl3d" style="margin:6px 0 8px">
       <label>Overhead and indirect <input type="number" id="bid-ovh" data-t="ovh" data-f="ovh" value="10" min="0" max="100" step="0.5" style="width:64px"> % added to direct cost</label>
       <label>Markup <input type="number" id="bid-mk" data-t="mk" data-f="mk" value="0" min="0" max="100" step="0.5" style="width:64px"> % on cost plus overhead</label>
+      <label id="outcomelabel" hidden>Project outcome <select id="bid-outcome"><option value="">not recorded</option><option value="pending">pending</option><option value="won">won</option><option value="lost">lost</option><option value="not_awarded">not awarded</option><option value="withdrawn">withdrawn</option></select></label>
       <button type="button" data-a="copy">Copy bid tables</button>
       <button type="button" data-a="reset">Reset to example rates</button>
     </div>
@@ -363,7 +377,7 @@ td.num { font-family: var(--mono); font-size: 12.5px }
     <h3>Bid items</h3>
     <div class="tablebox"><table id="biditems"><thead><tr><th>Bid item</th><th>Quantity</th><th>Unit</th><th>Crew</th><th>Crew hours</th><th>Labor and equipment</th><th>Material $ / unit</th><th>Material</th><th>Direct cost</th><th>Bid price</th><th>Unit price</th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="additem">Add bid item</button></p>
-    <p class="hint" style="margin:8px 0 0">Labor and equipment = quantity / crew production x crew cost per hour. Equipment rates are taken as operated; laborers are priced separately in each crew. Quantities follow the takeoff: type a quantity to override it, clear it to go back. Trucking is priced in its own table and carried into the total as one line. Bid price = direct cost plus overhead, then markup on top. Equipment, crews and the overhead and markup percents are saved in this browser for every job; quantities, crew choices, material prices and trucking are saved per job. Nothing here is shared with other people who open the page.</p>
+    <p class="hint" style="margin:8px 0 0">Labor and equipment = quantity / crew production x crew cost per hour. Equipment rates are taken as operated; laborers are priced separately in each crew. Quantities follow the takeoff: type a quantity to override it, clear it to go back. Trucking is priced in its own table and carried into the total as one line. Bid price = direct cost plus overhead, then markup on top. Equipment, crews, overhead and markup are company-wide. Quantities, crew choices, material prices and trucking are per job. With the database connected, edits are saved there and written to the activity log. On GitHub Pages they stay in this browser only. Example rates are not a bid until you change them.</p>
   </div>
 
   <div class="two">
@@ -374,6 +388,16 @@ td.num { font-family: var(--mono); font-size: 12.5px }
 </div>
 </div>
 
+<div id="gate" hidden>
+  <form id="gateform">
+    <h2>Earthwork Takeoff Studio</h2>
+    <p class="hint" id="gatehint" style="margin:0">Sign in so the activity log can record who changed the takeoff.</p>
+    <label id="gatepwlabel">Password <input type="password" id="gatepw" autocomplete="current-password"></label>
+    <label>Who is working <select id="gatewho"></select></label>
+    <button class="primary" type="submit">Continue</button>
+    <p class="err" id="gateerr"></p>
+  </form>
+</div>
 
 <button id="eggdot" type="button" title="?" aria-label="Music"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></button>
 <div id="egg" hidden>
@@ -406,15 +430,18 @@ td.num { font-family: var(--mono); font-size: 12.5px }
   window.__wpm = { jobs };    // debugging handle
   let J = null;               // current job
   let state, layer = "cf", res = null;
+  const api = { on: false, mode: "local", ratesRev: 0, user: null, authRequired: false, readOnly: false };
+  let persistArmed = false, persistTimer = null, ratesDirty = false;
 
   // ================================================================ job model
   // J = { name, sub, nx, ny, x0, y0, cell, zbase, eg, fg, reg, dist10, near, regions:[{name,type,section_in,rings}], limitsRings, basis:[], defaults:{} }
   function b64(s, T) { const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new T(u.buffer); }
+  function bytesB64(arr) { const u = new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
 
   function jobFromExport(D) {
     const j = { name: D.name, sub: `${D.frame} \u00b7 ${fmt(D.nx)} \u00d7 ${fmt(D.ny)} cells at ${D.cell} ft`, nx: D.nx, ny: D.ny, x0: D.x0, y0: D.y0, cell: D.cell, zbase: D.zbase,
       eg: b64(D.eg, Int16Array), fg: b64(D.fg, Int16Array), reg: b64(D.reg, Uint8Array), dist10: b64(D.dist10, Uint8Array), near: b64(D.near, Uint8Array),
-      regions: D.regions.map(r => ({ name: r.name, type: r.type, section_in: r.section_in, rings: r.rings })), limitsRings: D.limits, crs: D.crs || null, crsName: D.crs_name || null, aerialUrl: D.aerial || null, gradingUrl: D.grading || null, utilities: D.utilities || null, extras: D.extras || null, xsec: D.xsec ? b64(D.xsec, Int16Array) : null, phase: D.phase ? b64(D.phase, Uint8Array) : null, phaseNames: D.phase_names || null, DS: Math.max(1, Math.min(4, Math.round(2600 / Math.max(D.nx, D.ny)))),
+      regions: D.regions.map(r => ({ name: r.name, type: r.type, section_in: r.section_in, rings: r.rings, moisture_in: r.moisture_in, finish_elev: r.finish_elev })), limitsRings: D.limits, crs: D.crs || null, crsName: D.crs_name || null, aerialUrl: D.aerial || null, gradingUrl: D.grading || null, utilities: D.utilities || null, extras: D.extras || null, xsec: D.xsec ? b64(D.xsec, Int16Array) : null, phase: D.phase ? b64(D.phase, Uint8Array) : null, phaseNames: D.phase_names || null, sourceDoc: D, DS: Math.max(1, Math.min(4, Math.round(2600 / Math.max(D.nx, D.ny)))),
       defaults: { strip: D.spec.strip_in, shrink: 0, swell: 0, moist: 6, overbuild: 1 },
       basis: D.basis || [
         "Surfaces: existing ground from the C-GRAD-PL survey contours and shots; finish grade from the plan's 3D feature lines, 183 spot grades and contours. Both are constrained TINs sampled on a 1 ft grid, Texas South Central state plane feet.",
@@ -1347,13 +1374,13 @@ ${text}`;
       row.append(sw, nm, sy, sel, right); list.appendChild(row); });
     return list;
   }
-  function setRegionType(i, type) { const r = J.regions[i]; r.type = type; r.section_in = TYPE_DEFAULT_IN[type] !== undefined ? TYPE_DEFAULT_IN[type] : 0; state.sec[i] = r.section_in; if (r.auto) r.name = TYPE_LABEL[type] + (r.finish_elev !== null && r.finish_elev !== undefined ? `, FFE ${r.finish_elev.toFixed(2)}` : "");
+  function setRegionType(i, type) { const r = J.regions[i]; r.type = type; r.section_in = TYPE_DEFAULT_IN[type] !== undefined ? TYPE_DEFAULT_IN[type] : 0; state.sec[i] = r.section_in; J.gridDirty = true; if (r.auto) r.name = TYPE_LABEL[type] + (r.finish_elev !== null && r.finish_elev !== undefined ? `, FFE ${r.finish_elev.toFixed(2)}` : "");
     if (type !== "building_pad" && r.cells && r.finish_elev !== null && r.finish_elev !== undefined) { r.cells.forEach((k, q) => { J.fg[k] = r.prevFg[q]; }); r.finish_elev = null; }
-    const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near; buildSections(); syncInputs(); render(); renderFindings(); }
-  function setRegionFfe(i, v) { const r = J.regions[i]; if (!r.cells) return; if (isNaN(v)) { r.cells.forEach((k, q) => { J.fg[k] = r.prevFg[q]; }); r.finish_elev = null; } else { r.cells.forEach(k => { J.fg[k] = Math.round((v - J.zbase) * 100); }); r.finish_elev = v; if (r.auto) r.name = `Building pad, FFE ${v.toFixed(2)}`; } render(); renderFindings(); }
-  function removeRegion(i) { const r = J.regions[i]; if (!r.cells) return; r.cells.forEach((k, q) => { J.reg[k] = r.prev[q] === i ? 254 : r.prev[q]; J.fg[k] = r.prevFg[q]; }); J.regions.splice(i, 1); state.sec.splice(i, 1);
+    const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near; buildSections(); syncInputs(); render(); renderFindings(); scheduleSync(); }
+  function setRegionFfe(i, v) { const r = J.regions[i]; if (!r.cells) return; if (isNaN(v)) { r.cells.forEach((k, q) => { J.fg[k] = r.prevFg[q]; }); r.finish_elev = null; } else { r.cells.forEach(k => { J.fg[k] = Math.round((v - J.zbase) * 100); }); r.finish_elev = v; if (r.auto) r.name = `Building pad, FFE ${v.toFixed(2)}`; } J.gridDirty = true; render(); renderFindings(); scheduleSync(); }
+  function removeRegion(i) { const r = J.regions[i]; if (!r.cells) return; r.cells.forEach((k, q) => { J.reg[k] = r.prev[q] === i ? 254 : r.prev[q]; J.fg[k] = r.prevFg[q]; }); J.regions.splice(i, 1); state.sec.splice(i, 1); J.gridDirty = true;
     for (let k = 0; k < J.reg.length; k++) if (J.reg[k] < 254 && J.reg[k] > i) J.reg[k]--; J.regions.forEach(q => { if (q.prev) for (let m = 0; m < q.prev.length; m++) if (q.prev[m] < 254 && q.prev[m] > i) q.prev[m]--; });
-    const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near; buildSections(); syncInputs(); render(); renderFindings(); $("jobinfo").textContent = `${J.regions.length} areas`; }
+    const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near; buildSections(); syncInputs(); render(); renderFindings(); scheduleSync(); $("jobinfo").textContent = `${J.regions.length} areas`; }
 
   // ================================================================ documents in: one drop zone, the app sorts the files
   const intake = { files: [], busy: false, timer: null };
@@ -1562,17 +1589,18 @@ ${text}`;
     const prev = new Uint8Array(cells.length), prevFg = new Int16Array(cells.length);
     cells.forEach((k, i) => { prev[i] = reg[k]; prevFg[i] = fg[k]; reg[k] = idx; if (type === "building_pad" && !isNaN(ffe)) fg[k] = Math.round((ffe - zbase) * 100); });
     J.regions.push({ name: name || `${type.replace("_", " ")} ${idx + 1}`, type, section_in: TYPE_DEFAULT_IN[type] !== undefined ? TYPE_DEFAULT_IN[type] : 0, rings: [], cells: Int32Array.from(cells), prev, prevFg, finish_elev: type === "building_pad" && !isNaN(ffe) ? ffe : null });
+    J.gridDirty = true; scheduleSync();
     state.sec.push(J.regions[idx].section_in);
     const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near;
     buildSections(); syncInputs(); render(); $("jobinfo").textContent = `${J.regions.length} areas`;
     $("status").textContent = `${J.regions[idx].name}: ${fmt(cells.length * J.cell * J.cell / SY)} SY${J.regions[idx].finish_elev !== null ? `, finish grade set to ${ffe}` : ""}.`;
   }
   $("aundo").addEventListener("click", () => { if (!J || !J.regions.length) return; const r = J.regions[J.regions.length - 1]; if (!r.cells) { $("status").textContent = "That area came from a file; it cannot be undone here."; return; }
-    r.cells.forEach((k, i) => { J.reg[k] = r.prev[i]; J.fg[k] = r.prevFg[i]; }); J.regions.pop(); state.sec.pop(); const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near; buildSections(); syncInputs(); render(); $("jobinfo").textContent = `${J.regions.length} areas`; });
+    r.cells.forEach((k, i) => { J.reg[k] = r.prev[i]; J.fg[k] = r.prevFg[i]; }); J.regions.pop(); state.sec.pop(); J.gridDirty = true; const dn = pavingDistance(J.reg, J.regions, J); J.dist10 = dn.dist10; J.near = dn.near; buildSections(); syncInputs(); render(); scheduleSync(); $("jobinfo").textContent = `${J.regions.length} areas`; });
   $("afinish").addEventListener("click", () => { if (!J || tool.trace.length < 3) { $("status").textContent = "Trace at least three points first."; return; }
     const tmp = new Uint8Array(J.nx * J.ny); fillRings([tool.trace.map(([c, r]) => [J.x0 + c * J.cell, J.y0 + r * J.cell])], J, tmp, 1);
     const cells = []; for (let k = 0; k < tmp.length; k++) if (tmp[k] && J.reg[k] !== 255) cells.push(k);
-    if (tool.mode === "limits") { for (let k = 0; k < tmp.length; k++) if (!tmp[k] && J.reg[k] !== 255) J.reg[k] = 255; tool.trace = []; render(); $("status").textContent = "Limits set to the traced polygon."; return; }
+    if (tool.mode === "limits") { for (let k = 0; k < tmp.length; k++) if (!tmp[k] && J.reg[k] !== 255) J.reg[k] = 255; tool.trace = []; J.gridDirty = true; render(); scheduleSync(); $("status").textContent = "Limits set to the traced polygon."; return; }
     tool.trace = []; addRegion(cells, $("atype").value, $("aname").value.trim(), parseFloat($("affe").value)); });
   $("map").addEventListener("click", (ev) => {
     if (!J || tool.mode === "inspect") return; const { nx, ny } = J;
@@ -1581,7 +1609,7 @@ ${text}`;
     if (tool.mode === "trace") { tool.trace.push([col, row]); drawMap(); return; }
     if (J.reg[k] === 255) { $("status").textContent = "Click inside the limits."; return; }
     const cells = floodMask(k); if (!cells) { $("status").textContent = "That area is not enclosed by linework; trace it instead."; return; }
-    if (tool.mode === "limits") { const keep = new Uint8Array(nx * ny); cells.forEach(c => { keep[c] = 1; }); for (let q = 0; q < nx * ny; q++) if (!keep[q] && J.reg[q] !== 255) J.reg[q] = 255; render(); $("status").textContent = `Limits set to the filled area: ${fmt(cells.length * J.cell * J.cell / SY)} SY.`; return; }
+    if (tool.mode === "limits") { const keep = new Uint8Array(nx * ny); cells.forEach(c => { keep[c] = 1; }); for (let q = 0; q < nx * ny; q++) if (!keep[q] && J.reg[q] !== 255) J.reg[q] = 255; J.gridDirty = true; render(); scheduleSync(); $("status").textContent = `Limits set to the filled area: ${fmt(cells.length * J.cell * J.cell / SY)} SY.`; return; }
     addRegion(cells, $("atype").value, $("aname").value.trim(), parseFloat($("affe").value));
   });
 
@@ -1663,7 +1691,8 @@ ${text}`;
   }
   $("utilbox").addEventListener("change", (e) => { const t = e.target; if (!J || !J.utilities) return;
     if (t.dataset.u) J.utilities.pipes[+t.dataset.i][t.dataset.u] = parseFloat(t.value) || 0; else if (t.dataset.s) J.utilities.structs[+t.dataset.i][t.dataset.s] = parseFloat(t.value) || 0;
-    renderUtilities(); renderBid(); });
+    else scheduleSync();
+    renderUtilities(); renderBid(); if (t.dataset.u || t.dataset.s) scheduleSync(); });
   $("u-copy").addEventListener("click", () => { const rows = (id) => [...$(id).rows].map(r => [...r.cells].map(c => { const i = c.querySelector("input"); return i ? i.value : c.textContent; }).join("\t")).join("\n"); navigator.clipboard.writeText(rows("upipes") + "\n\n" + rows("ustructs")); });
   // ================================================================ bid pricing: equipment, crews, trucking by the load, material prices, overhead
   const BKEY = "wpm_rates_v1", bEsc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1677,9 +1706,78 @@ ${text}`;
       { id: "load", name: "Load-out crew", eq: [{ id: "exc", n: 1 }], labor: 0, laborRate: 38, prod: 200, unit: "CY" },
       { id: "pipe", name: "Pipe crew", eq: [{ id: "exc", n: 1 }, { id: "loader", n: 1 }, { id: "comp", n: 1 }], labor: 3, laborRate: 38, prod: 25, unit: "LF" },
       { id: "struct", name: "Structure crew", eq: [{ id: "exc", n: 1 }], labor: 2, laborRate: 38, prod: 0.5, unit: "EA" }] });
-  let B = (() => { try { const v = localStorage.getItem(BKEY); if (v) { const o = JSON.parse(v); if (o && o.equip && o.crews) return o; } } catch (e) {} return bidDefaults(); })();
+  let B = bidDefaults();
   let JB = null, JBname = null;
-  const saveBid = () => { try { localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} };
+  function showPersist(extra) {
+    const el = $("persist"); if (!el) return; el.hidden = false; el.className = api.mode;
+    const who = api.user && api.user.name ? " · " + api.user.name : "";
+    el.textContent = extra || (api.mode === "db" ? "Saved to the database" + who : api.mode === "readonly" ? "Read only" + who : "Local mode — this browser only");
+    const out = $("signout"); if (out) out.hidden = !(api.on && api.user);
+  }
+  async function apiFetch(url, opts) {
+    const res = await fetch(url, Object.assign({ credentials: "same-origin", headers: { "content-type": "application/json" } }, opts || {}));
+    const text = await res.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch (e) { body = { message: text }; }
+    if (!res.ok) { const err = new Error((body && body.message) || res.statusText); err.status = res.status; err.code = body && body.code; throw err; }
+    return body;
+  }
+  function studioDocument(job) {
+    const base = job.sourceDoc ? JSON.parse(JSON.stringify(job.sourceDoc)) : { name: job.name, frame: job.sub || "studio", cell: job.cell, nx: job.nx, ny: job.ny, x0: job.x0, y0: job.y0, zbase: job.zbase, limits: job.limitsRings || [], spec: { strip_in: state ? state.strip : 0, shrink_pct: 0, swell_pct: 0 }, basis: job.basis || [], regions: [] };
+    base.eg = bytesB64(job.eg); base.fg = bytesB64(job.fg); base.reg = bytesB64(job.reg); base.dist10 = bytesB64(job.dist10); base.near = bytesB64(job.near);
+    if (job.xsec) base.xsec = bytesB64(job.xsec); if (job.phase) base.phase = bytesB64(job.phase);
+    base.regions = job.regions.map((r, i) => ({ name: r.name, type: r.type, section_in: state && state.sec && state.sec[i] != null ? state.sec[i] : r.section_in, rings: r.rings || [], finish_elev: r.finish_elev == null ? null : r.finish_elev, moisture_in: r.moisture_in == null ? null : r.moisture_in }));
+    base.limits = job.limitsRings || base.limits || [];
+    if (job.utilities) base.utilities = job.utilities; if (job.extras) base.extras = job.extras;
+    if (base.spec && state) base.spec.strip_in = state.strip;
+    return base;
+  }
+  function collectState() {
+    const T = res && res.T;
+    return {
+      rev: J.rev, factors: { strip: state.strip, shrink: state.shrink, swell: state.swell, moist: state.moist, overbuild: state.overbuild, dz: state.dz, sec: state.sec ? state.sec.slice() : [] },
+      utilities: J.utilities || null, utilParams: { side: parseFloat($("u-side").value), bed: parseFloat($("u-bed").value), cov: parseFloat($("u-cov").value), den: parseFloat($("u-den").value) },
+      balance: T ? { cut_cy: T.cut, fill_cy: T.fill, fill_bank_cy: T.fillBank, balance_cy: T.balance, import_cy: T.balance < 0 ? Math.abs(T.balance) : 0, export_cy: T.balance > 0 ? T.balance : 0, loose_cy: T.loose, strip_cy: T.strip, area_sy: T.area, moist_sy: T.moistSY, shrink_pct: state.shrink, swell_pct: state.swell } : null,
+      phases: res && res.phases ? res.phases.map(h => ({ name: h.name, sy: h.sy, strip_cy: h.strip, cut_cy: h.cut, fill_cy: h.fill })) : null,
+      grading: res && res.rows ? res.rows.map(r => ({ name: r.name, sy: r.sy, section_label: r.secLabel, strip_cy: r.strip, cut_cy: r.cut, fill_cy: r.fill, avg_cut_ft: r.avgcut, avg_fill_ft: r.avgfill, moist_sy: r.moist })) : null,
+      bid: JB || { items: {}, custom: [], trucks: null }, touched: !!B.touched,
+      directCost: B.touched ? window.__wpm.lastDirect : null, bidTotal: B.touched ? window.__wpm.lastBidTotal : null, markupPct: B.markup || 0,
+      grid: (J.gridDirty || !J.studioKey) ? studioDocument(J) : undefined,
+    };
+  }
+  async function pushSync(job, payload, sendRates) {
+    if (!api.on || api.readOnly || !job) return;
+    try {
+      if (!job.studioKey) {
+        const created = await apiFetch("/api/studio/jobs", { method: "POST", body: JSON.stringify({ document: payload.grid || studioDocument(job) }) });
+        job.studioKey = created.id; job.versionId = created.id; job.projectId = created.projectId; job.rev = created.rev; job.gridDirty = false;
+        payload.rev = created.rev; payload.grid = undefined;
+      }
+      if (sendRates) { const saved = await apiFetch("/api/studio/rates", { method: "PUT", body: JSON.stringify({ rev: api.ratesRev, document: B }) }); api.ratesRev = saved.rev; }
+      const saved = await apiFetch("/api/studio/jobs/" + encodeURIComponent(job.studioKey), { method: "PUT", body: JSON.stringify(payload) });
+      job.rev = saved.rev; job.gridDirty = false;
+      job.savedEditor = { factors: payload.factors, utilities: payload.utilities, utilParams: payload.utilParams };
+      job.savedBid = payload.bid;
+      if (J === job) showPersist();
+    } catch (e) {
+      if (e.status === 409 && job.studioKey) {
+        try {
+          const fresh = await apiFetch("/api/studio/jobs/" + encodeURIComponent(job.studioKey));
+          job.rev = fresh.rev; job.savedEditor = fresh.editor; job.savedBid = fresh.bid ? { items: fresh.bid.items || {}, custom: fresh.bid.custom || [], trucks: fresh.bid.trucks } : null; job.outcome = fresh.outcome;
+          if (J === job) { applySaved(job); buildSections(); syncInputs(); JBname = null; render(); }
+          showPersist("Reloaded — someone else saved this job");
+        } catch (e2) { showPersist("Not saved — " + e.message); }
+      } else if (sendRates) ratesDirty = true, showPersist(api.mode === "db" ? "Not saved — " + e.message : "Local mode — this browser only");
+      else showPersist(api.mode === "db" ? "Not saved — " + e.message : "Local mode — this browser only");
+    }
+  }
+  function scheduleSync() { if (!persistArmed || !api.on || api.readOnly || !J) return; const job = J; const payload = collectState(); const sendRates = ratesDirty; ratesDirty = false; clearTimeout(job._timer); job._timer = setTimeout(() => pushSync(job, payload, sendRates), 600); }
+  const saveBid = (scope) => { try { localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} if (scope !== "job") ratesDirty = true; scheduleSync(); };
+  function applySaved(job) {
+    const ed = job.savedEditor;
+    if (ed && ed.utilities) job.utilities = ed.utilities;
+    if (ed && ed.utilParams) { const p = ed.utilParams; if (p.side != null) $("u-side").value = p.side; if (p.bed != null) $("u-bed").value = p.bed; if (p.cov != null) $("u-cov").value = p.cov; if (p.den != null) $("u-den").value = p.den; }
+    if (ed && ed.factors && state) { const f = ed.factors; ["strip", "shrink", "swell", "moist", "overbuild", "dz"].forEach(k => { if (f[k] != null) state[k] = f[k]; }); if (Array.isArray(f.sec)) state.sec = f.sec.map(v => v == null ? 0 : v); }
+    const oc = $("bid-outcome"); if (oc) { oc.value = job.outcome || ""; $("outcomelabel").hidden = !api.on; }
+  }
   const crewRate = (c) => c.eq.reduce((a, m) => { const q = B.equip.find(x => x.id === m.id); return a + (q ? q.rate * m.n : 0); }, 0) + (c.labor || 0) * (c.laborRate || 0);
   const money = (v, d) => "$" + fmt(v, d || 0);
   const TSRC = [["import", "Import, loose CY"], ["export", "Export, loose CY"], ["strip", "Stripping, CY"], ["uspoil", "Utility spoils, CY"], ["uagg", "Utility aggregate, tons"], ["manual", "Entered by hand"]];
@@ -1709,7 +1807,7 @@ ${text}`;
   }
   function renderBid() {
     const box = $("bidbox"); if (!box) return; box.hidden = !(J && res); if (!J || !res) return;
-    if (JBname !== J.name) { JB = null; try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} if (!JB || !JB.items) JB = { items: {}, custom: [], trucks: null }; JBname = J.name; }
+    if (JBname !== J.name) { JB = null; if (api.on) JB = J.savedBid || null; else { try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} } if (!JB || !JB.items) JB = { items: {}, custom: [], trucks: null }; JBname = J.name; }
     const trucks = JB.trucks || bidTruckDefaults();
     const inp = (t, i, k, v, w, kind) => `<input ${kind || 'type="number" min="0" step="any"'} data-t="${t}" data-i="${bEsc(i)}" data-k="${k}" data-f="${t}|${bEsc(i)}|${k}" value="${bEsc(v)}" style="width:${w}px">`;
     const txt = 'type="text"';
@@ -1743,6 +1841,7 @@ ${text}`;
       `<tr class="sub"><td>Overhead and indirect, ${fmt(B.ovh || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (mo - 1))}</td><td></td></tr>` +
       `<tr class="sub"><td>Markup, ${fmt(B.markup || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (m - mo))}</td><td></td></tr>` +
       `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(direct * m)}</td><td></td></tr>`;
+    window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = direct * m;
   }
   $("bidbox").addEventListener("change", (e) => { const t = e.target, d = t.dataset; if (!d.t || !J || !JB) return; const num = () => parseFloat(t.value) || 0;
     if (d.t === "ovh") B.ovh = num();
@@ -1754,7 +1853,7 @@ ${text}`;
     else if (d.t === "truck") { if (!JB.trucks) JB.trucks = bidTruckDefaults(); JB.trucks[+d.i][d.k] = (d.k === "desc" || d.k === "src") ? t.value : num(); }
     else if (d.t === "cust") JB.custom[+d.i][d.k] = d.k === "qty" ? num() : t.value;
     else if (d.t === "item") { const o = JB.items[d.i] = JB.items[d.i] || {}; if (d.k === "qty") o.qty = t.value === "" ? null : num(); else if (d.k === "crew") o.crew = t.value; else if (d.k === "mat") o.mat = num(); }
-    B.touched = true; saveBid();
+    B.touched = true; saveBid(d.t === "ovh" || d.t === "mk" || d.t === "eq" || d.t === "crew" ? "rates" : "job");
     setTimeout(() => { const ae = document.activeElement, f = ae && ae.dataset ? ae.dataset.f : null; renderBid();
       if (f) { const el = [...$("bidbox").querySelectorAll("[data-f]")].find(x => x.dataset.f === f); if (el) { el.focus(); if (el.select) el.select(); } } }, 0); });
   $("bidbox").addEventListener("click", (e) => { const t = e.target.closest("[data-a]"); if (!t || !J || !JB) return; const a = t.dataset.a, i = +t.dataset.i;
@@ -1770,9 +1869,10 @@ ${text}`;
     else if (a === "delitem") { delete JB.items[JB.custom[i].key]; JB.custom.splice(i, 1); }
     else if (a === "copy") { const rows = (id) => [...$(id).rows].map(r => [...r.cells].map(c => { const el = c.querySelector("input,select"); return el ? (el.tagName === "SELECT" ? (el.selectedOptions[0] ? el.selectedOptions[0].textContent : "") : (el.value || el.placeholder || "")) : c.textContent; }).join("\t")).join("\n");
       navigator.clipboard.writeText(["bideq", "bidcrew", "bidtruck", "biditems"].map(rows).join("\n\n")); return; }
-    else if (a === "reset") { if (t.dataset.arm !== "1") { t.dataset.arm = "1"; t.textContent = "Click again to reset"; return; } t.dataset.arm = ""; t.textContent = "Reset to example rates"; B = bidDefaults(); saveBid(); renderBid(); return; }
+    else if (a === "reset") { if (t.dataset.arm !== "1") { t.dataset.arm = "1"; t.textContent = "Click again to reset"; return; } t.dataset.arm = ""; t.textContent = "Reset to example rates"; B = bidDefaults(); saveBid("rates"); renderBid(); return; }
     else return;
-    B.touched = true; saveBid(); renderBid(); });
+    const rateAction = a === "addeq" || a === "deleq" || a === "addcrew" || a === "delcrew" || a === "delmem";
+    B.touched = true; saveBid(rateAction ? "rates" : "job"); renderBid(); });
   function balanceDz() {
     let lo = -3, hi = 3; const f = (dz) => compute({ ...state, dz }).T.balance;
     if (f(lo) < 0 || f(hi) > 0) return null;
@@ -2001,7 +2101,7 @@ ${text}`;
   if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => res && drawMap());
 
   // ================================================================ controls
-  function bindNum(id, key, after) { $(id).addEventListener("input", () => { const v = parseFloat($(id).value); if (!isNaN(v) && J) { state[key] = v; if (after) after(v); render(); } }); }
+  function bindNum(id, key, after) { $(id).addEventListener("input", () => { const v = parseFloat($(id).value); if (!isNaN(v) && J) { state[key] = v; if (after) after(v); render(); scheduleSync(); } }); }
   function buildSections() {
     const box = $("sections"); box.innerHTML = "";
     if (!J.regions.length) { box.innerHTML = `<p class="hint" style="margin:0">No areas in this job: the whole site is graded to finish grade (subgrade depth 0). Load an areas file to set pavement sections.</p>`; return; }
@@ -2009,7 +2109,7 @@ ${text}`;
       const div = document.createElement("div"); div.className = "ctl";
       div.innerHTML = `<label for="sec${i}"><span class="sw" style="background:${colors[r.type] || colors.other}"></span>${r.name} <span class="unit">${r.type.replace("_", " ")}</span></label><span><input type="number" id="sec${i}" min="0" max="60" step="0.5" value="${r.section_in}"><span class="unit">in</span></span>`;
       box.appendChild(div);
-      $(`sec${i}`).addEventListener("input", () => { const v = parseFloat($(`sec${i}`).value); if (!isNaN(v)) { state.sec[i] = v; render(); } });
+      $(`sec${i}`).addEventListener("input", () => { const v = parseFloat($(`sec${i}`).value); if (!isNaN(v)) { state.sec[i] = v; render(); scheduleSync(); } });
     });
   }
   function syncInputs() {
@@ -2030,26 +2130,74 @@ ${text}`;
   // ================================================================ open a job
   function openJob(job) {
     J = job; const { nx, ny, eg, fg, reg, zbase } = J;
+    if (api.on) { JB = job.savedBid && job.savedBid.items ? job.savedBid : { items: {}, custom: [], trucks: job.savedBid ? job.savedBid.trucks : null }; JBname = job.name; }
     zmin = Infinity; zmax = -Infinity;
     { const vals = []; for (let k = 0; k < nx * ny; k += 7) if (reg[k] !== 255) { vals.push(eg[k], fg[k]); } vals.sort((a, b) => a - b); if (vals.length) { zmin = vals[Math.floor(vals.length * 0.02)] / 100 + zbase; zmax = vals[Math.floor(vals.length * 0.98)] / 100 + zbase; } }
     const DS = J.DS || 1; canvas.width = nx * DS; canvas.height = ny * DS; img = ctx.createImageData(nx, ny);
+    state = defaults(); applySaved(job);
     renderUtilities(); $("gradinglayerbtn").hidden = !J.gradingUrl; $("planlayerbtn").hidden = !J.plan; if (!J.plan && layer === "plan") { layer = "cf"; document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x.dataset.layer === "cf")); }
     tool.trace = [];
     $("jobtitle").textContent = J.name; $("jobsub").textContent = J.sub; $("jobinfo").textContent = `${J.regions.length} areas`;
     $("basis").innerHTML = J.basis.map(b => `<li>${b}</li>`).join("");
-    state = defaults(); buildSections(); syncInputs(); render();
+    buildSections(); syncInputs(); render();
     $("status").textContent = `${fmt(nx)} \u00d7 ${fmt(ny)} cells at ${J.cell} ft`;
   }
 
   // opening another job refreshes the area editor in the findings list
   { const openJob0 = openJob; openJob = function (job) { openJob0(job); if (!$("findcard").hidden) renderFindings(); }; }
 
-  // ================================================================ boot: the built-in jobs ship with the page
-  (async () => {
+  $("bid-outcome").addEventListener("change", () => { if (!api.on || !J || !J.studioKey || !$("bid-outcome").value) return; const status = $("bid-outcome").value;
+    apiFetch("/api/studio/jobs/" + encodeURIComponent(J.studioKey) + "/outcome", { method: "POST", body: JSON.stringify({ status }) }).then(() => { jobs.forEach(j => { if (j.projectId === J.projectId) j.outcome = status; }); showPersist(); }).catch(e => { $("status").textContent = e.message; }); });
+  $("signout").addEventListener("click", () => { apiFetch("/api/logout", { method: "POST", body: "{}" }).finally(() => location.reload()); });
+
+  function rememberJob(meta, D) {
+    const job = jobFromExport(D);
+    job.studioKey = meta.key; job.versionId = meta.versionId; job.projectId = meta.projectId; job.rev = meta.rev;
+    job.savedEditor = meta.editor; job.outcome = meta.outcome; job.flags = meta.flags || [];
+    job.savedBid = meta.bid ? { items: meta.bid.items || {}, custom: meta.bid.custom || [], trucks: meta.bid.trucks } : null;
+    jobs.push(job); addJobOption(job);
+    if (jobs.length === 1) { $("jobpick").value = "0"; openJob(job); }
+    return job;
+  }
+  async function loadLocalFiles() {
+    try { const v = localStorage.getItem(BKEY); if (v) { const o = JSON.parse(v); if (o && o.equip && o.crews) B = o; } } catch (e) {}
     for (const f of ["data.json", "bucees.json", "va.json", "dunant.json", "alamo_base.json", "alamo_alt.json", "innovation.json", "innovation_p2.json", "innovation_p3.json"]) {
       try { const D = await (await fetch(f)).json(); const job = jobFromExport(D); jobs.push(job); addJobOption(job); if (jobs.length === 1) { $("jobpick").value = "0"; openJob(job); } }
       catch (e) { $("status").textContent = `${f} could not load; upload a job above. ${e}`; }
     }
+  }
+  function showGate() {
+    return new Promise((resolve) => {
+      const gate = $("gate"); gate.hidden = false;
+      $("gatepwlabel").hidden = !api.authRequired;
+      $("gatehint").textContent = api.authRequired ? "Enter the shared password and pick your name. The activity log records that name on every save." : "No shared password is set on this server. Pick your name so the log shows who saved.";
+      apiFetch("/api/auth/employees").then(emps => { $("gatewho").innerHTML = emps.map(e => `<option value="${e.id}">${e.name}${e.title ? " (" + e.title + ")" : ""}</option>`).join(""); }).catch(e => { $("gateerr").textContent = e.message; });
+      $("gateform").addEventListener("submit", (ev) => { ev.preventDefault();
+        apiFetch("/api/login", { method: "POST", body: JSON.stringify({ employeeId: $("gatewho").value, password: $("gatepw").value }) }).then(body => {
+          api.user = { name: body.user.name, employeeId: body.user.employeeId, role: body.user.role };
+          api.readOnly = String(body.user.role).indexOf("viewer") >= 0; gate.hidden = true; resolve();
+        }).catch(e => { $("gateerr").textContent = e.message || "Could not sign in."; });
+      });
+    });
+  }
+
+  // ================================================================ boot: database when the API answers, otherwise the files next to the page
+  (async () => {
+    let health = null;
+    try { health = await apiFetch("/api/health"); } catch (e) { health = null; }
+    if (health && health.ok) {
+      api.on = true; api.authRequired = !!health.authRequired; api.user = health.user; api.readOnly = !!(health.user && health.user.role === "viewer"); api.mode = api.readOnly ? "readonly" : "db";
+      showPersist();
+      if (!health.user) await showGate();
+      api.mode = api.readOnly ? "readonly" : "db"; showPersist();
+      try {
+        const rates = await apiFetch("/api/studio/rates"); api.ratesRev = rates.rev || 0; if (rates.document && rates.document.equip && rates.document.crews) B = rates.document;
+        const list = await apiFetch("/api/studio/jobs");
+        for (const meta of list) rememberJob(meta, await apiFetch("/api/studio/jobs/" + encodeURIComponent(meta.key) + "/document"));
+        if (!jobs.length) $("status").textContent = "No jobs in the database yet. Build one above, or run the import.";
+      } catch (e) { $("status").textContent = "The database did not load the jobs. " + e.message; api.mode = "local"; api.on = false; showPersist(); await loadLocalFiles(); }
+    } else { api.mode = "local"; showPersist(); await loadLocalFiles(); }
+    persistArmed = true; window.__wpm.ready = true;
   })();
 })();
 
