@@ -1878,7 +1878,23 @@ ${text}`;
   });
   // ---- Quotes: stored company-wide (server library, or this browser in local mode), linked to the jobs they were
   // taken for, grouped by scope to compare, and carried into a bid item's material price from the bid table.
-  let QUOTES = [], qEditing = null;
+  let QUOTES = [], qEditing = null, QSPECS = [];
+  // A job opened for the first time in a browser with no saved bid takes the prices of the quotes shipped with
+  // the page (same matching as db/import-quotes.js: pipes by system, structures by system and type, custom lines).
+  function seedBidFromQuotes(job, bid) {
+    const U = job.utilities || {};
+    QSPECS.forEach(s => {
+      if (!(s.files || []).includes(job.file)) return;
+      const q = s.quote, lines = new Map((q.items || []).map(l => [l.id, l]));
+      (s.apply || []).forEach(a => {
+        const l = lines.get(a.line); if (!l || l.unitPrice == null || (a.files && !a.files.includes(job.file))) return;
+        const p = { mat: l.unitPrice, matQuote: { id: q.id, line: l.id, vendor: q.vendor, quoteNo: q.quoteNo || "" } };
+        if (a.pipe) (U.pipes || []).forEach(x => { if (x.sys === a.pipe) bid.items[`pipe:${x.sys} ${x.size}" ${x.mat}`] = Object.assign({}, p); });
+        if (a.struct) { const re = new RegExp(a.struct.match, "i"); (U.structs || []).forEach(x => { if (x.sys === a.struct.sys && re.test(x.type)) bid.items[`st:${x.sys} ${x.type}`] = Object.assign({}, p); }); }
+        if (a.custom) { const key = `q:${q.id}:${l.id}`; if (!bid.custom.some(c => c.key === key)) bid.custom.push({ key, desc: a.custom.desc || l.description, unit: a.custom.unit || l.unit, qty: a.custom.qty != null ? a.custom.qty : l.qty }); bid.items[key] = Object.assign({}, p); }
+      });
+    });
+  }
   const QKEY = "wpm_quotes_v1", today = () => new Date().toISOString().slice(0, 10);
   const qJobKey = () => (J && (J.projectId || J.name)) || "";
   const qForJob = (q) => (q.projectIds || []).includes(qJobKey());
@@ -1886,7 +1902,11 @@ ${text}`;
   async function loadQuotes() {
     try {
       if (api.on) QUOTES = await apiFetch("/api/quotes");
-      else { const v = localStorage.getItem(QKEY); QUOTES = v ? JSON.parse(v) : []; }
+      else {
+        const v = localStorage.getItem(QKEY); QUOTES = v ? JSON.parse(v) : [];
+        // quotes shipped with the page, linked to the jobs they were taken for; this browser's own copies win
+        QSPECS.forEach(s => { if (!QUOTES.some(q => q.id === s.quote.id)) QUOTES.push(Object.assign({}, s.quote, { projectIds: jobs.filter(j => (s.files || []).includes(j.file)).map(j => j.name) })); });
+      }
     } catch (e) { QUOTES = []; $("q-mode").textContent = "Quotes could not load: " + e.message; }
     renderQuotes(); if (J && res) renderBid();
   }
@@ -2113,7 +2133,7 @@ ${text}`;
   }
   function renderBid() {
     const box = $("bidbox"); if (!box) return; box.hidden = !(J && res); if (!J || !res) return;
-    if (JBname !== J.name) { JB = null; if (api.on) JB = J.savedBid || null; else { try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} } if (!JB || !JB.items) JB = { items: {}, custom: [], trucks: null };
+    if (JBname !== J.name) { JB = null; if (api.on) JB = J.savedBid || null; else { try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} } if (!JB || !JB.items) { JB = { items: {}, custom: [], trucks: null }; if (!api.on) seedBidFromQuotes(J, JB); }
       JBname = J.name; }
     // rate set follows the open job (openJob sets JB directly when the database is on, so this is tracked apart from JBname)
     if (BJname !== J.name) { if (J.bid) { if (!BG) BG = B; const own = JB.items.__rates; B = (own && own.equip && own.crews) ? own : jobRates(); } else if (BG) { B = BG; BG = null; } BJname = J.name; }
@@ -2513,8 +2533,10 @@ ${text}`;
   }
   async function loadLocalFiles() {
     try { const v = localStorage.getItem(BKEY); if (v) { const o = JSON.parse(v); if (o && o.equip && o.crews) B = o; } } catch (e) {}
+    // quotes that ship with the page (db/build-quotes-json.js); read before any job opens so their prices can seed a new bid
+    try { const r = await fetch("quotes.json"); if (r.ok) QSPECS = await r.json(); } catch (e) { QSPECS = []; }
     for (const f of ["data.json", "bucees.json", "va.json", "dunant.json", "alamo_base.json", "alamo_alt.json", "innovation.json", "innovation_p2.json", "innovation_p3.json", "stony.json"]) {
-      try { const D = await (await fetch(f)).json(); const job = jobFromExport(D); jobs.push(job); addJobOption(job); if (jobs.length === 1) { $("jobpick").value = "0"; openJob(job); } }
+      try { const D = await (await fetch(f)).json(); const job = jobFromExport(D); job.file = f; jobs.push(job); addJobOption(job); if (jobs.length === 1) { $("jobpick").value = "0"; openJob(job); } }
       catch (e) { $("status").textContent = `${f} could not load; upload a job above. ${e}`; }
     }
   }

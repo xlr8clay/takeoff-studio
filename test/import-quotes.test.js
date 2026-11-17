@@ -67,3 +67,9 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
   assert.equal(last.bid.items['pipe:Water 8" size not labelled'].mat, 15, 'earlier lines are not put back');
   assert.equal(last.bid.custom.length, 2, 'custom lines are not added twice');
 });
+
+test('quotes.json (the copy for pages without a server) matches db/seed-data/quotes', () => {
+  const { build } = require('../db/build-quotes-json');
+  const shipped = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'quotes.json'), 'utf8'));
+  assert.deepEqual(shipped, build(), 'run: node db/build-quotes-json.js');
+});
