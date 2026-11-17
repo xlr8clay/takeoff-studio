@@ -20,7 +20,7 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
   const [r1] = await runWithContext({ request_id: 't' }, () => importQuotes(repo));
   assert.equal(r1.quote, 'q-coremain-5350952');
   assert.equal(r1.wrote, true);
-  assert.equal(r1.applied, 'phases-2-3: 8 items; phase-2: 6 items; phase-3: 6 items');
+  assert.equal(r1.applied, 'phases-2-3: 8 items; phase-2: 7 items; phase-3: 7 items');
 
   const q = await repo.getLibraryItem('quotes', 'q-coremain-5350952');
   assert.equal(q.items.length, 8);
@@ -44,7 +44,10 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
       assert.deepEqual(custom.map((c) => [c.desc, c.qty]), [['Sewer detection tape, 12x1000 ft rolls', 8], ['Fire hydrant assembly', 14]]);
       assert.equal(items[custom[1].key].mat, 5500);
       assert.equal(items[custom[0].key].mat, 10);
-    } else assert.equal(custom.length, 0, 'hydrants and tape only on the Phases 2 and 3 job');
+    } else {
+      assert.deepEqual(custom.map((c) => [c.desc, c.qty]), [['Fire hydrant assembly', j.versionId === 'ew-innovation-p2' ? 8 : 6]], 'hydrants by phase, tape only on the Phases 2 and 3 job');
+      assert.equal(items[custom[0].key].mat, 5500);
+    }
   }
 
   // an estimator changes a price; the next start does not put the quote back
@@ -61,7 +64,7 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
   const fhKey = after.bid.custom.find((c) => c.desc === 'Fire hydrant assembly').key;
   await repo.applyBidPrices(phases.versionId, { [fhKey]: { mat: 1 } });
   const [r3] = await runWithContext({ request_id: 't' }, () => importQuotes(repo));
-  assert.equal(r3.applied, 'phases-2-3: 2 items');
+  assert.equal(r3.applied, 'phases-2-3: 2 items; phase-2: 1 items; phase-3: 1 items');
   const last = (await repo.listStudioJobs()).find((j) => j.versionId === 'ew-innovation-phases');
   assert.equal(last.bid.items[fhKey].mat, 5500);
   assert.equal(last.bid.items['pipe:Water 8" size not labelled'].mat, 15, 'earlier lines are not put back');

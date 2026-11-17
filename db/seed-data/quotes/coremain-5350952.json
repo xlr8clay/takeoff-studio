@@ -8,7 +8,7 @@
     "expires": "2026-12-17",
     "type": "material",
     "scope": "Utility materials: sewer, water, storm",
-    "notes": "Bid proposal 'CLS - CLAY DEERING BUDGET', Austin TX, bid date 11/25/2026, rep Cooper Scott. Quantities are the Innovation Building #2 Phases 2 and 3 takeoff. Prices valid 30 days from the quote if released for manufacture; subject to tariff, fuel and raw-material increases. Tax 0.00 on the quote ('actual taxes may vary'). The 8 rolls of 12x1000 ft green sewer detection tape show $999,999.00 each on the quote ($7,999,992, nearly all of the $8,686,078.12 total), a placeholder; carried at $10.00 per roll per Clay Deering (11/17/2026). Fire hydrant assemblies: 14 at $5,500 each per Clay Deering (11/17/2026), not on the printed quote. Quote total with these: $763,166.12. Section totals: sewer pipe $64,857.86, water $363,998.68, storm pipe $137,162.95, storm structures $53,774.91, wastewater manholes $55,597.40, cleanouts $10,694.32. Not quoted: the 33 FUTURE storm structures.",
+    "notes": "Bid proposal 'CLS - CLAY DEERING BUDGET', Austin TX, bid date 11/25/2026, rep Cooper Scott. Quantities are the Innovation Building #2 Phases 2 and 3 takeoff. Prices valid 30 days from the quote if released for manufacture; subject to tariff, fuel and raw-material increases. Tax 0.00 on the quote ('actual taxes may vary'). The 8 rolls of 12x1000 ft green sewer detection tape show $999,999.00 each on the quote ($7,999,992, nearly all of the $8,686,078.12 total), a placeholder; carried at $10.00 per roll per Clay Deering (11/17/2026). Fire hydrant assemblies: 14 at $5,500 each per Clay Deering (11/17/2026), not on the printed quote; 8 in Phase 2 and 6 in Phase 3 (per Clay Deering). Quote total with these: $763,166.12. Section totals: sewer pipe $64,857.86, water $363,998.68, storm pipe $137,162.95, storm structures $53,774.91, wastewater manholes $55,597.40, cleanouts $10,694.32. Not quoted: the 33 FUTURE storm structures.",
     "source": "CLS - CLAY DEERING BUDGET_Austin_TX_Bid#_5350952_11-17-2026_0410_PM.pdf",
     "items": [
       {
@@ -133,6 +133,30 @@
       },
       "versions": [
         "ew-innovation-phases"
+      ]
+    },
+    {
+      "rev": 3,
+      "line": "l-fh",
+      "custom": {
+        "desc": "Fire hydrant assembly",
+        "unit": "EA",
+        "qty": 8
+      },
+      "versions": [
+        "ew-innovation-p2"
+      ]
+    },
+    {
+      "rev": 3,
+      "line": "l-fh",
+      "custom": {
+        "desc": "Fire hydrant assembly",
+        "unit": "EA",
+        "qty": 6
+      },
+      "versions": [
+        "ew-innovation-p3"
       ]
     }
   ]
