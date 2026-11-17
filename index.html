@@ -419,6 +419,15 @@ td.num { font-family: var(--mono); font-size: 12.5px }
     <h3>Trucking by the load</h3>
     <div class="tablebox"><table id="bidtruck"><thead><tr><th>Haul</th><th>Quantity from</th><th>Quantity</th><th>Per load</th><th>Loads</th><th>$ per load</th><th>Cost</th><th></th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="addtruck">Add haul</button></p>
+    <h3>Mobilization and demobilization</h3>
+    <div class="ctl3d" style="margin:6px 0 4px">
+      <label>Mobilizations <input type="number" id="mob-count" data-t="mob" data-k="count" data-f="mob|count" min="0" step="1" style="width:50px"></label>
+      <label>Haul <input type="number" id="mob-perMove" data-t="mob" data-k="perMove" data-f="mob|perMove" min="0" step="1" style="width:76px"> $ per piece per move</label>
+      <label>Pieces <input type="number" id="mob-pieces" data-t="mob" data-k="pieces" data-f="mob|pieces" min="0" step="1" style="width:56px" title="Blank = counted from the equipment in the crews assigned to bid items"></label>
+      <label>Other <input type="number" id="mob-other" data-t="mob" data-k="other" data-f="mob|other" min="0" step="1" style="width:84px"> $ per mobilization</label>
+      <label><input type="checkbox" id="mob-demob" data-t="mob" data-k="demob" data-f="mob|demob"> Demob priced the same</label>
+    </div>
+    <p class="hint" id="mob-sum" style="margin:0 0 6px"></p>
     <h3>Bid items</h3>
     <div class="tablebox"><table id="biditems"><thead><tr><th>Bid item</th><th>Quantity</th><th>Unit</th><th>Crew</th><th>Crew hours</th><th>Labor and equipment</th><th>Material $ / unit</th><th>Material</th><th>Direct cost</th><th>Bid price</th><th>Unit price</th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="additem">Add bid item</button></p>
@@ -2000,9 +2009,22 @@ ${text}`;
       const crew = `<select data-t="item" data-i="${k}" data-k="crew" data-f="item|${k}|crew"><option value="">no crew</option>${B.crews.map(x => `<option value="${x.id}"${x.id === cid ? " selected" : ""}>${bEsc(x.name)} (${fmt(x.prod, x.prod < 1 ? 2 : x.prod < 10 ? 1 : 0)} ${x.unit}/hr)</option>`).join("")}</select>`;
       return `<tr><td>${name}</td><td class="num">${qcell}</td><td>${unit}</td><td>${crew}${warn}</td><td class="num">${hrs ? fmt(hrs, 1) : ""}</td><td class="num">${le ? money(le) : ""}</td><td class="num">${inp("item", it.key, "mat", o.mat || "", 76)}</td><td class="num">${mat ? money(mat) : ""}</td><td class="num">${money(d)}</td><td class="num">${money(d * m)}</td><td class="num">${qty > 0 && d ? money(d * m / qty, 2) : ""}</td></tr>`; }).join("");
     direct += truckTot;
+    // Mobilization and demobilization (per job): each mobilization moves every piece of equipment the bid's crews use
+    // (largest count of each machine in any one crew), plus a lump of other costs; demob doubles it when checked.
+    const MO = JB.items.__mob = JB.items.__mob || { count: 1, perMove: 0, pieces: null, other: 0, demob: true };   // kept in items so the server stores it with the bid
+    const pieceN = {}; items.forEach(it => { const o = JB.items[it.key] || {}, cid = o.crew != null ? o.crew : (J.bid && J.bid.crewFor && J.bid.crewFor[it.key] != null ? J.bid.crewFor[it.key] : it.crew), c = B.crews.find(x => x.id === cid);
+      if (c) c.eq.forEach(m => { pieceN[m.id] = Math.max(pieceN[m.id] || 0, m.n); }); });
+    const autoPieces = Object.values(pieceN).reduce((a, n) => a + n, 0), pieces = MO.pieces != null ? MO.pieces : autoPieces;
+    const mobOne = pieces * (MO.perMove || 0) + (MO.other || 0), mobCost = (MO.count || 0) * mobOne * (MO.demob ? 2 : 1);
+    for (const k of ["count", "perMove", "other"]) { const el = $("mob-" + k); if (document.activeElement !== el) el.value = MO[k] || 0; }
+    if (document.activeElement !== $("mob-pieces")) { $("mob-pieces").value = MO.pieces != null ? MO.pieces : ""; $("mob-pieces").placeholder = fmt(autoPieces); }
+    $("mob-demob").checked = !!MO.demob;
+    $("mob-sum").textContent = `${fmt(MO.count || 0)} mobilization${MO.count === 1 ? "" : "s"} x (${fmt(pieces)} pieces x ${money(MO.perMove || 0)} + ${money(MO.other || 0)})${MO.demob ? " x 2 for demob" : ""} = ${money(mobCost)} direct cost.${MO.pieces == null ? ` Pieces counted from the crews on the bid items: ${fmt(autoPieces)}.` : ""}`;
+    direct += mobCost;
     // GL rated on revenue: grossed up so the premium is L.gl percent of the final contract including itself
     const glRev = L.glBasis === "revenue" && L.gl > 0 && L.gl < 100 ? direct * m * (L.gl / 100) / (1 - L.gl / 100) : 0;
     $("biditems").tBodies[0].innerHTML = body +
+      (mobCost ? `<tr><td>Mobilization and demobilization</td><td class="num">1</td><td>LS</td><td colspan="5"></td><td class="num">${money(mobCost)}</td><td class="num">${money(mobCost * m)}</td><td class="num">${money(mobCost * m, 2)}</td></tr>` : "") +
       `<tr><td>Trucking, from the table above</td><td class="num">${fmt(loadTot)}</td><td>loads</td><td colspan="5"></td><td class="num">${money(truckTot)}</td><td class="num">${money(truckTot * m)}</td><td class="num">${loadTot ? money(truckTot * m / loadTot, 2) : ""}</td></tr>` +
       `<tr class="sub"><td>Direct cost</td><td colspan="4"></td><td class="num">${money(leT)}</td><td></td><td class="num">${money(matT)}</td><td class="num">${money(direct)}</td><td></td><td></td></tr>` +
       `<tr class="sub"><td>Overhead and indirect, ${fmt(B.ovh || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (mo - 1))}</td><td></td></tr>` +
@@ -2022,6 +2044,8 @@ ${text}`;
       else if (d.k === "laborRate" && t.value === "") delete c.laborRate;
       else c[d.k] = (d.k === "name" || d.k === "unit") ? t.value : num(); }
     else if (d.t === "wage") labor().wages[d.k] = num();
+    else if (d.t === "mob") { const MO = JB.items.__mob = JB.items.__mob || { count: 1, perMove: 0, pieces: null, other: 0, demob: true };
+      MO[d.k] = d.k === "demob" ? t.checked : d.k === "pieces" && t.value === "" ? null : num(); }
     else if (d.t === "truck") { if (!JB.trucks) JB.trucks = bidTruckDefaults(); JB.trucks[+d.i][d.k] = (d.k === "desc" || d.k === "src") ? t.value : num(); }
     else if (d.t === "cust") JB.custom[+d.i][d.k] = d.k === "qty" ? num() : t.value;
     else if (d.t === "item") { const o = JB.items[d.i] = JB.items[d.i] || {}; if (d.k === "qty") o.qty = t.value === "" ? null : num(); else if (d.k === "crew") o.crew = t.value; else if (d.k === "mat") o.mat = num(); }
