@@ -397,6 +397,12 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       <label>General liability <input type="number" id="lab-gl" data-t="lab" data-k="gl" data-f="lab|gl" min="0" max="50" step="0.01" style="width:64px"> %
         of <select id="lab-glBasis" data-t="lab" data-k="glBasis" data-f="lab|glBasis"><option value="payroll">payroll</option><option value="revenue">the contract</option></select></label>
     </div>
+    <div class="ctl3d" style="margin:0 0 4px">
+      <label>Days per week <input type="number" id="lab-days" data-t="lab" data-k="days" data-f="lab|days" min="1" max="7" step="1" style="width:50px"></label>
+      <label>Per diem <input type="number" id="lab-perDiem" data-t="lab" data-k="perDiem" data-f="lab|perDiem" min="0" step="0.01" style="width:70px"> $ per person per day</label>
+      <label>Truck allowance <input type="number" id="lab-truck" data-t="lab" data-k="truck" data-f="lab|truck" min="0" step="0.01" style="width:70px"> $ per foreman per day</label>
+      <label>Paid <select id="lab-pdBasis" data-t="lab" data-k="pdBasis" data-f="lab|pdBasis"><option value="worked">per day worked</option><option value="calendar">7 days a week</option></select></label>
+    </div>
     <p class="hint" id="lab-sum" style="margin:0 0 4px"></p>
     <p class="hint" style="margin:0 0 6px">Each crew's operators, laborers and foremen are priced at these wages (a crew can set its own laborer rate), then overtime and burden are added. Equipment rates that already include the operator: leave that crew's Operators at 0. Enter bare equipment rates and count the operators to price operators apart. FUTA and SUTA stop at their wage bases (FUTA $7,000, Texas SUTA $9,000 per worker), so enter the effective percentage for your payroll. Workers' comp: your class code rate per $100 of payroll is the same number as a percent.</p>
     <h3>Equipment</h3>
@@ -1899,6 +1905,7 @@ ${text}`;
     if (!B.labor) B.labor = Object.assign({}, J && J.bid ? LABOR_OFF : LABOR_DEFAULT);
     // 60 hour weeks are the company standard on every job: a rate set saved with the earlier 40 hour default moves to 60
     if (!B.labor.v) { if (B.labor.week === 40) B.labor.week = 60; B.labor.v = 2; }
+    if (B.labor.days == null) Object.assign(B.labor, { days: 6, perDiem: 0, truck: 0, pdBasis: "worked" });
     if (!B.labor.wages) {
       // first open after operators and foremen were split out: the company laborer wage takes the crews' shared rate
       // and those crews drop their copy; crews with their own rate (a job's HeavyBid set) keep it as an override
@@ -1913,7 +1920,12 @@ ${text}`;
   const laborFactor = () => { const L = labor(); return otFactor(L) * (1 + burdenPct(L) / 100); };
   const crewLabor = (c) => { const W = labor().wages, lr = c.laborRate != null && c.laborRate !== "" ? c.laborRate : W.lab;
     return ((c.ops || 0) * (W.op || 0) + (c.labor || 0) * (lr || 0) + (c.fore || 0) * (W.fore || 0)) * laborFactor(); };
-  const crewRate = (c) => c.eq.reduce((a, m) => { const q = B.equip.find(x => x.id === m.id); return a + (q ? q.rate * m.n : 0); }, 0) + crewLabor(c);
+  // Per diem (every head) and truck allowance (foremen) are paid by the day, without overtime or burden. A day is
+  // week / days hours of crew time; paid 7 days a week, a worked day carries 7 / days of them.
+  const crewAllow = (c) => { const L = labor(), hd = L.days > 0 && L.week > 0 ? L.week / L.days : 0; if (!hd) return 0;
+    const paid = L.pdBasis === "calendar" ? 7 / L.days : 1;
+    return (((c.ops || 0) + (c.labor || 0) + (c.fore || 0)) * (L.perDiem || 0) + (c.fore || 0) * (L.truck || 0)) * paid / hd; };
+  const crewRate = (c) => c.eq.reduce((a, m) => { const q = B.equip.find(x => x.id === m.id); return a + (q ? q.rate * m.n : 0); }, 0) + crewLabor(c) + crewAllow(c);
   const money = (v, d) => "$" + fmt(v, d || 0);
   const TSRC = [["import", "Import, loose CY"], ["export", "Export, loose CY"], ["strip", "Stripping, CY"], ["uspoil", "Utility spoils, CY"], ["uagg", "Utility aggregate, tons"], ["manual", "Entered by hand"]];
   const BUNITS = ["CY", "SY", "LF", "EA", "TON", "SF", "LS"];
@@ -1964,13 +1976,13 @@ ${text}`;
         `<td class="num">${r.src === "manual" ? inp("truck", i, "qty", r.qty || 0, 80) : fmt(q)}</td><td class="num">${inp("truck", i, "per", r.per, 60)}</td><td class="num">${fmt(loads)}</td><td class="num">${inp("truck", i, "rate", r.rate, 70)}</td><td class="num">${money(cost)}</td><td>${del("deltruck", i)}</td></tr>`; }).join("") +
       `<tr class="total"><td>All trucking</td><td></td><td></td><td></td><td class="num">${fmt(loadTot)}</td><td></td><td class="num">${money(truckTot)}</td><td></td></tr>`;
     const items = bidItems().concat(JB.custom.map((c, i) => ({ key: c.key, desc: c.desc, unit: c.unit, qty: c.qty || 0, crew: "", ci: i })));
-    const mo = 1 + (B.ovh || 0) / 100, m = mo * (1 + (B.markup || 0) / 100); let direct = 0, leT = 0, matT = 0, hrsT = 0, wageT = 0;
+    const mo = 1 + (B.ovh || 0) / 100, m = mo * (1 + (B.markup || 0) / 100); let direct = 0, leT = 0, matT = 0, hrsT = 0, wageT = 0, allowT = 0;
     const L = labor(), lf = laborFactor();
-    for (const k of ["week", "otAfter", "otMult", "futa", "suta", "wc", "gl", "glBasis"]) { const el = $("lab-" + k); if (el && document.activeElement !== el) el.value = L[k]; }
+    for (const k of ["week", "otAfter", "otMult", "futa", "suta", "wc", "gl", "glBasis", "days", "perDiem", "truck", "pdBasis"]) { const el = $("lab-" + k); if (el && document.activeElement !== el) el.value = L[k]; }
     for (const k of ["op", "lab", "fore"]) { const el = $("wage-" + k); if (el && document.activeElement !== el) el.value = L.wages[k]; }
     $("lab-sum").textContent = `Laborer wages x ${fmt(lf, 3)}: overtime ${fmt((otFactor(L) - 1) * 100, 1)}% (${fmt(L.week, 0)} hr week, over ${fmt(L.otAfter, 0)} at ${fmt(L.otMult, 2)}x), burden ${fmt(burdenPct(L), 2)}% of payroll${L.glBasis === "revenue" && L.gl ? `; GL ${fmt(L.gl, 2)}% of the contract is added after markup` : ""}.`;
     const body = items.map(it => { const o = JB.items[it.key] || {}, cust = it.ci != null, qty = !cust && o.qty != null ? o.qty : it.qty, cid = o.crew != null ? o.crew : (J.bid && J.bid.crewFor && J.bid.crewFor[it.key] != null ? J.bid.crewFor[it.key] : it.crew), c = B.crews.find(x => x.id === cid);
-      const hrs = c && c.prod > 0 ? qty / c.prod : 0, le = c ? hrs * crewRate(c) : 0, mat = (o.mat || 0) * qty, d = le + mat; direct += d; leT += le; matT += mat; hrsT += hrs; if (c) wageT += hrs * crewLabor(c);
+      const hrs = c && c.prod > 0 ? qty / c.prod : 0, le = c ? hrs * crewRate(c) : 0, mat = (o.mat || 0) * qty, d = le + mat; direct += d; leT += le; matT += mat; hrsT += hrs; if (c) { wageT += hrs * crewLabor(c); allowT += hrs * crewAllow(c); }
       const k = bEsc(it.key), warn = c && c.unit !== it.unit ? ` <span class="bwarn" title="This crew produces in ${c.unit} per hour but the item is measured in ${it.unit}">check unit</span>` : "";
       const name = cust ? inp("cust", it.ci, "desc", it.desc, 230, txt) + del("delitem", it.ci) : bEsc(it.desc);
       const unit = cust ? `<select data-t="cust" data-i="${it.ci}" data-k="unit" data-f="cust|${it.ci}|unit">${BUNITS.map(u => `<option${u === it.unit ? " selected" : ""}>${u}</option>`).join("")}</select>` : it.unit;
@@ -1987,13 +1999,13 @@ ${text}`;
       `<tr class="sub"><td>Markup, ${fmt(B.markup || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (m - mo))}</td><td></td></tr>` +
       (glRev ? `<tr class="sub"><td>General liability, ${fmt(L.gl, 2)}% of the contract</td><td colspan="8"></td><td class="num">${money(glRev)}</td><td></td></tr>` : "") +
       `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(direct * m + glRev)}</td><td></td></tr>` +
-      `<tr class="sub"><td>Crew time</td><td colspan="10">${fmt(hrsT, 0)} crew hours = ${fmt(L.week > 0 ? hrsT / L.week : 0, 1)} crew weeks at ${fmt(L.week, 0)} hr; burdened laborer cost in the direct cost ${money(wageT)}</td></tr>`;
+      `<tr class="sub"><td>Crew time</td><td colspan="10">${fmt(hrsT, 0)} crew hours = ${fmt(L.week > 0 ? hrsT / L.week : 0, 1)} crew weeks at ${fmt(L.week, 0)} hr (${fmt(L.days > 0 ? L.week / L.days : 0, 1)} hr days); in the direct cost: burdened labor ${money(wageT)}, per diem and truck allowance ${money(allowT)}</td></tr>`;
     window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = direct * m + glRev;
   }
   $("bidbox").addEventListener("change", (e) => { const t = e.target, d = t.dataset; if (!d.t || !J || !JB) return; const num = () => parseFloat(t.value) || 0;
     if (d.t === "ovh") B.ovh = num();
     else if (d.t === "mk") B.markup = num();
-    else if (d.t === "lab") labor()[d.k] = d.k === "glBasis" ? t.value : num();
+    else if (d.t === "lab") labor()[d.k] = d.k === "glBasis" || d.k === "pdBasis" ? t.value : num();
     else if (d.t === "eq") B.equip[+d.i][d.k] = d.k === "name" ? t.value : num();
     else if (d.t === "crew") { const c = B.crews[+d.i];
       if (d.k === "add") { if (t.value) { const mm = c.eq.find(x => x.id === t.value); if (mm) mm.n++; else c.eq.push({ id: t.value, n: 1 }); } }
