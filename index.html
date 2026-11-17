@@ -48,6 +48,20 @@ header .sub { color: var(--muted); font-size: 13px; min-width: 0 }
 #people form { display: flex; flex-wrap: wrap; gap: 8px; }
 #people form input { flex: 1 1 140px; min-width: 0; }
 #people .err { color: var(--err); margin: 0; min-height: 1.2em; }
+#qform[hidden] { display: none; }
+#qform { position: fixed; inset: 0; z-index: 80; background: rgba(27, 35, 48, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#qform .qbox { width: min(820px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--panel); border-radius: var(--r); box-shadow: var(--shadow); padding: 20px; display: grid; gap: 10px; }
+#qform h2 { font: 700 24px/1 var(--display); margin: 0; color: var(--fg); }
+#qform .qgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+#qform label { display: grid; gap: 3px; font-size: 12.5px; color: var(--muted); }
+#qform input, #qform select, #qform textarea { font: 13px var(--body); padding: 6px; width: 100%; text-align: left; }
+#qform table input { padding: 4px; }
+#qform .err { color: var(--err); margin: 0; min-height: 1.2em; }
+#q-list .qgroup { margin: 8px 0 12px; }
+#q-list .qgroup h4 { margin: 0 0 4px; font: 600 13px var(--body); }
+#q-list td.best { color: var(--ok); font-weight: 600; }
+#q-list .expired { color: var(--err); font-weight: 600; }
+.qchip { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 18px }
 .card h2, .panel h2 { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .1em; margin: 0 0 10px; color: var(--muted) }
 .cardhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px } .cardhead h2 { margin: 0 }
@@ -439,6 +453,14 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       <label>for <input type="text" id="fee-permitNote" data-t="fee" data-k="permitNote" data-f="fee|permitNote" placeholder="e.g. SWPPP, grading permit" style="width:220px"></label>
     </div>
     <p class="hint" style="margin:0 0 6px">Permits and sales tax are direct costs and take overhead and markup; sales tax is figured on the material prices in the bid items (leave 0 where the job is tax exempt). Bond and insurance (builder's risk, umbrella; GL is in the labor block) are figured on the final contract, themselves included, and are not marked up.</p>
+    <h3>Quotes</h3>
+    <div class="ctl3d" style="margin:6px 0 4px">
+      <label>Show <select id="q-filter"><option value="job">quotes for this job</option><option value="all">all quotes</option></select></label>
+      <label>Scope <input type="text" id="q-search" placeholder="filter by scope or vendor" style="width:200px"></label>
+      <button type="button" id="q-add">Add quote</button>
+      <span class="hint" id="q-mode" style="margin:0"></span>
+    </div>
+    <div id="q-list"></div>
     <h3>Bid items</h3>
     <div class="tablebox"><table id="biditems"><thead><tr><th>Bid item</th><th>Quantity</th><th>Unit</th><th>Crew</th><th>Crew hours</th><th>Labor and equipment</th><th>Material $ / unit</th><th>Material</th><th>Direct cost</th><th>Bid price</th><th>Unit price</th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="additem">Add bid item</button></p>
@@ -461,6 +483,25 @@ td.num { font-family: var(--mono); font-size: 12.5px }
     <label>Who is working <select id="gatewho"></select></label>
     <button class="primary" type="submit">Continue</button>
     <p class="err" id="gateerr"></p>
+  </form>
+</div>
+
+<div id="qform" hidden role="dialog" aria-modal="true" aria-labelledby="qhead">
+  <form class="qbox" id="qformform">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 id="qhead">Quote</h2><button id="qclose" type="button" class="quiet" aria-label="Close">x</button></div>
+    <div class="qgrid">
+      <label>Vendor or sub <input id="qf-vendor" maxlength="300" required></label>
+      <label>Quote # <input id="qf-quoteNo" maxlength="100"></label>
+      <label>Type <select id="qf-type"><option value="material">Material</option><option value="sub">Subcontract</option><option value="trucking">Trucking</option><option value="equipment">Equipment rental</option><option value="other">Other</option></select></label>
+      <label>Scope (groups quotes to compare) <input id="qf-scope" maxlength="300" list="qf-scopes" placeholder="e.g. Select fill, Storm pipe"><datalist id="qf-scopes"></datalist></label>
+      <label>Quote date <input id="qf-date" type="date"></label>
+      <label>Good until <input id="qf-expires" type="date"></label>
+    </div>
+    <div class="tablebox" style="margin:0"><table><thead><tr><th>Line</th><th>Unit</th><th>Qty</th><th>Unit price $</th><th>Ext $</th><th></th></tr></thead><tbody id="qf-lines"></tbody></table></div>
+    <p style="margin:0"><button type="button" id="qf-addline">Add line</button></p>
+    <label>Notes, exclusions, conditions <textarea id="qf-notes" rows="3" maxlength="4000"></textarea></label>
+    <div style="display:flex;gap:8px;align-items:center"><button class="primary" type="submit">Save quote</button><span class="hint" id="qf-job" style="margin:0"></span></div>
+    <p class="err" id="qf-err"></p>
   </form>
 </div>
 
@@ -1835,6 +1876,94 @@ ${text}`;
     if (t.dataset.act === "remove" && !confirm(`Remove ${name}? They are signed out and drop off the sign-in list. You can restore them later.`)) return;
     changePerson(t.dataset.id, { active: t.dataset.act === "restore" }, name);
   });
+  // ---- Quotes: stored company-wide (server library, or this browser in local mode), linked to the jobs they were
+  // taken for, grouped by scope to compare, and carried into a bid item's material price from the bid table.
+  let QUOTES = [], qEditing = null;
+  const QKEY = "wpm_quotes_v1", today = () => new Date().toISOString().slice(0, 10);
+  const qJobKey = () => (J && (J.projectId || J.name)) || "";
+  const qForJob = (q) => (q.projectIds || []).includes(qJobKey());
+  const qTotal = (q) => (q.items || []).reduce((a, l) => a + (l.ext != null ? l.ext : (l.qty || 0) * (l.unitPrice || 0)), 0);
+  async function loadQuotes() {
+    try {
+      if (api.on) QUOTES = await apiFetch("/api/quotes");
+      else { const v = localStorage.getItem(QKEY); QUOTES = v ? JSON.parse(v) : []; }
+    } catch (e) { QUOTES = []; $("q-mode").textContent = "Quotes could not load: " + e.message; }
+    renderQuotes(); if (J && res) renderBid();
+  }
+  function saveLocalQuotes() { try { localStorage.setItem(QKEY, JSON.stringify(QUOTES)); } catch (e) {} }
+  function quotePick(key, unit, o) {
+    const pool = QUOTES.filter(qForJob).concat(QUOTES.filter(q => !qForJob(q)));
+    const opts = []; pool.forEach(q => (q.items || []).forEach(l => { if (l.unitPrice != null && (l.unit || "").toUpperCase() === String(unit).toUpperCase()) opts.push(`<option value="${esc(q.id)}|${esc(l.id)}">${esc(q.vendor)}${qForJob(q) ? "" : " (other job)"}: ${esc(l.description || q.scope || "")} ${money(l.unitPrice, 2)}/${esc(l.unit)}</option>`); }));
+    const chip = o && o.matQuote ? `<span class="qchip" title="Price from quote ${esc(o.matQuote.quoteNo)}">from ${esc(o.matQuote.vendor)}</span>` : "";
+    if (!opts.length) return chip;
+    return `<select data-t="item" data-i="${esc(key)}" data-k="matq" data-f="item|${esc(key)}|matq" style="max-width:150px;font-size:11px" aria-label="Material price from a quote"><option value="">from quote...</option>${opts.join("")}</select>${chip}`;
+  }
+  function renderQuotes() {
+    const box = $("q-list"); if (!box) return;
+    $("q-mode").textContent = api.on ? (api.readOnly ? "Read only" : "Saved to the database for every job") : "Local mode: quotes stay in this browser";
+    $("q-add").hidden = api.on && api.readOnly;
+    const all = $("q-filter").value === "all", s = $("q-search").value.trim().toLowerCase();
+    const shown = QUOTES.filter(q => (all || qForJob(q)) && (!s || `${q.scope} ${q.vendor}`.toLowerCase().includes(s)));
+    $("qf-scopes").innerHTML = [...new Set(QUOTES.map(q => q.scope).filter(Boolean))].map(x => `<option value="${esc(x)}">`).join("");
+    if (!shown.length) { box.innerHTML = `<p class="hint" style="margin:0">${QUOTES.length ? "No quotes match. Show all quotes, or add one for this job." : "No quotes yet. Add one to compare vendors and carry a price into the bid items."}</p>`; return; }
+    const groups = {}; shown.forEach(q => { const k = q.scope || "No scope given"; (groups[k] = groups[k] || []).push(q); });
+    box.innerHTML = Object.keys(groups).sort().map(scope => {
+      const qs = groups[scope], best = {};
+      qs.forEach(q => (q.items || []).forEach(l => { if (l.unitPrice != null && !l.ls) { const u = (l.unit || "").toUpperCase(); if (best[u] == null || l.unitPrice < best[u]) best[u] = l.unitPrice; } }));
+      const rows = qs.sort((a, b) => qTotal(a) - qTotal(b)).map(q => {
+        const exp = q.expires && q.expires < today(), lines = q.items || [];
+        return lines.map((l, i) => { const u = (l.unit || "").toUpperCase(), isBest = l.unitPrice != null && !l.ls && best[u] === l.unitPrice && qs.length > 1;
+          return `<tr>${i === 0 ? `<td rowspan="${lines.length}"><b>${esc(q.vendor)}</b>${q.quoteNo ? `<br><small>#${esc(q.quoteNo)}</small>` : ""}${qForJob(q) ? "" : `<br><small>other job</small>`}</td><td rowspan="${lines.length}">${esc(q.date || "")}</td><td rowspan="${lines.length}"${exp ? ' class="expired" title="Past its good-until date"' : ""}>${esc(q.expires || "")}${exp ? " expired" : ""}</td>` : ""}` +
+            `<td>${esc(l.description)}</td><td>${esc(l.unit)}</td><td class="num">${l.qty != null ? fmt(l.qty, 2) : ""}</td><td class="num${isBest ? " best" : ""}">${l.unitPrice != null ? money(l.unitPrice, 2) : ""}${isBest ? " lowest" : ""}</td><td class="num">${l.ext != null ? money(l.ext, 2) : ""}</td>` +
+            (i === 0 ? `<td rowspan="${lines.length}" class="num">${money(qTotal(q), 2)}</td><td rowspan="${lines.length}">${api.on && api.readOnly ? "" : `<button type="button" class="quiet" data-q="edit" data-id="${esc(q.id)}">Edit</button><button type="button" class="quiet" data-q="del" data-id="${esc(q.id)}">Delete</button>`}${q.notes ? `<br><small title="${esc(q.notes)}">notes</small>` : ""}</td>` : "") + `</tr>`; }).join("");
+      }).join("");
+      return `<div class="qgroup"><h4>${esc(scope)} <span class="hint">${qs.length} quote${qs.length === 1 ? "" : "s"}</span></h4><div class="tablebox" style="margin:0"><table><thead><tr><th>Vendor</th><th>Date</th><th>Good until</th><th>Line</th><th>Unit</th><th>Qty</th><th>Unit price</th><th>Ext</th><th>Quote total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }).join("");
+  }
+  const qLineRow = (l) => `<tr><td><input data-c="description" value="${esc(l.description || "")}" style="min-width:220px"></td><td><input data-c="unit" value="${esc(l.unit || "")}" style="width:60px" list="qf-units"></td><td><input data-c="qty" type="number" step="any" value="${l.qty != null ? l.qty : ""}" style="width:80px"></td><td><input data-c="unitPrice" type="number" step="any" value="${l.unitPrice != null ? l.unitPrice : ""}" style="width:90px"></td><td class="num" data-c="ext"></td><td><button type="button" class="quiet" data-c="rm" aria-label="Remove line">x</button></td></tr>`;
+  function qExt() { [...$("qf-lines").rows].forEach(r => { const q = parseFloat(r.querySelector('[data-c="qty"]').value), p = parseFloat(r.querySelector('[data-c="unitPrice"]').value); r.querySelector('[data-c="ext"]').textContent = isFinite(q) && isFinite(p) ? money(q * p, 2) : ""; }); }
+  function openQuote(q) {
+    qEditing = q || null; const v = q || { type: "material", items: [{}] };
+    for (const k of ["vendor", "quoteNo", "type", "scope", "date", "expires", "notes"]) $("qf-" + k).value = v[k] || (k === "type" ? "material" : "");
+    $("qf-lines").innerHTML = (v.items && v.items.length ? v.items : [{}]).map(qLineRow).join(""); qExt();
+    $("qhead").textContent = q ? "Edit quote" : "Add quote";
+    $("qf-job").textContent = J ? `Linked to ${J.name}` : ""; $("qf-err").textContent = ""; $("qform").hidden = false; $("qf-vendor").focus();
+  }
+  $("qformform").insertAdjacentHTML("beforeend", `<datalist id="qf-units">${["CY", "TON", "SY", "LF", "EA", "LS", "SF", "HR", "LOAD", "GAL"].map(u => `<option value="${u}">`).join("")}</datalist>`);
+  $("q-add").addEventListener("click", () => openQuote(null));
+  $("qclose").addEventListener("click", () => { $("qform").hidden = true; });
+  $("qform").addEventListener("click", (e) => { if (e.target.id === "qform") $("qform").hidden = true; });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("qform").hidden) $("qform").hidden = true; });
+  $("qf-addline").addEventListener("click", () => { $("qf-lines").insertAdjacentHTML("beforeend", qLineRow({})); });
+  $("qf-lines").addEventListener("input", qExt);
+  $("qf-lines").addEventListener("click", (e) => { if (e.target.dataset.c === "rm") { e.target.closest("tr").remove(); qExt(); } });
+  $("q-filter").addEventListener("change", renderQuotes);
+  $("q-search").addEventListener("input", renderQuotes);
+  $("q-list").addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-q]"); if (!b) return; const q = QUOTES.find(x => x.id === b.dataset.id); if (!q) return;
+    if (b.dataset.q === "edit") return openQuote(q);
+    if (!confirm(`Delete the quote from ${q.vendor}? Bid items keep any price already taken from it.`)) return;
+    try { if (api.on) await apiFetch("/api/quotes/" + encodeURIComponent(q.id), { method: "DELETE" }); QUOTES = QUOTES.filter(x => x.id !== q.id); if (!api.on) saveLocalQuotes(); renderQuotes(); renderBid(); }
+    catch (err) { $("q-mode").textContent = "Not deleted: " + err.message; }
+  });
+  $("qformform").addEventListener("submit", async (e) => {
+    e.preventDefault(); $("qf-err").textContent = "";
+    const items = [...$("qf-lines").rows].map((r, i) => { const g = (c) => r.querySelector(`[data-c="${c}"]`).value.trim(), qty = g("qty"), up = g("unitPrice"), old = qEditing && qEditing.items && qEditing.items[i];
+      return { id: old && old.id, description: g("description"), unit: g("unit").toUpperCase(), qty: qty === "" ? null : Number(qty), unitPrice: up === "" ? null : Number(up), ls: g("unit").toUpperCase() === "LS" }; })
+      .filter(l => l.description || l.unitPrice != null);
+    items.forEach(l => { l.ext = l.qty != null && l.unitPrice != null ? Math.round(l.qty * l.unitPrice * 100) / 100 : null; });
+    const quote = { id: qEditing ? qEditing.id : undefined, vendor: $("qf-vendor").value.trim(), quoteNo: $("qf-quoteNo").value.trim(), type: $("qf-type").value, scope: $("qf-scope").value.trim(), date: $("qf-date").value, expires: $("qf-expires").value, notes: $("qf-notes").value.trim(), items };
+    if (!quote.vendor) { $("qf-err").textContent = "Vendor is required."; return; }
+    if (!items.length) { $("qf-err").textContent = "Add at least one line with a description or a price."; return; }
+    try {
+      let saved;
+      if (api.on) saved = await apiFetch("/api/quotes", { method: "POST", body: JSON.stringify({ quote, projectId: J && J.projectId }) });
+      else { saved = Object.assign({}, quote, { id: quote.id || "q-" + Date.now(), projectIds: Array.from(new Set(((qEditing && qEditing.projectIds) || []).concat(qJobKey() ? [qJobKey()] : []))) }); saved.items.forEach((l, i) => { l.id = l.id || `${saved.id}-l${i + 1}`; }); }
+      QUOTES = QUOTES.filter(x => x.id !== saved.id).concat([saved]); if (!api.on) saveLocalQuotes();
+      $("qform").hidden = true; renderQuotes(); renderBid();
+    } catch (err) { $("qf-err").textContent = err.message; }
+  });
+
   $("peopleadd").addEventListener("submit", async (e) => {
     e.preventDefault(); $("peopleerr").textContent = "";
     try {
@@ -2018,7 +2147,7 @@ ${text}`;
       const unit = cust ? `<select data-t="cust" data-i="${it.ci}" data-k="unit" data-f="cust|${it.ci}|unit">${BUNITS.map(u => `<option${u === it.unit ? " selected" : ""}>${u}</option>`).join("")}</select>` : it.unit;
       const qcell = cust ? inp("cust", it.ci, "qty", it.qty, 84) : `<input type="number" min="0" step="any" data-t="item" data-i="${k}" data-k="qty" data-f="item|${k}|qty" value="${o.qty != null ? o.qty : ""}" placeholder="${fmt(it.qty)}" title="From the takeoff: ${fmt(it.qty)} ${it.unit}. Type to override, clear to go back." style="width:84px">`;
       const crew = `<select data-t="item" data-i="${k}" data-k="crew" data-f="item|${k}|crew"><option value="">no crew</option>${B.crews.map(x => `<option value="${x.id}"${x.id === cid ? " selected" : ""}>${bEsc(x.name)} (${fmt(x.prod, x.prod < 1 ? 2 : x.prod < 10 ? 1 : 0)} ${x.unit}/hr)</option>`).join("")}</select>`;
-      return `<tr><td>${name}</td><td class="num">${qcell}</td><td>${unit}</td><td>${crew}${warn}</td><td class="num">${hrs ? fmt(hrs, 1) : ""}</td><td class="num">${le ? money(le) : ""}</td><td class="num">${inp("item", it.key, "mat", o.mat || "", 76)}</td><td class="num">${mat ? money(mat) : ""}</td><td class="num">${money(d)}</td><td class="num">${money(d * m)}</td><td class="num">${qty > 0 && d ? money(d * m / qty, 2) : ""}</td></tr>`; }).join("");
+      return `<tr><td>${name}</td><td class="num">${qcell}</td><td>${unit}</td><td>${crew}${warn}</td><td class="num">${hrs ? fmt(hrs, 1) : ""}</td><td class="num">${le ? money(le) : ""}</td><td class="num">${inp("item", it.key, "mat", o.mat || "", 76)}${quotePick(it.key, it.unit, o)}</td><td class="num">${mat ? money(mat) : ""}</td><td class="num">${money(d)}</td><td class="num">${money(d * m)}</td><td class="num">${qty > 0 && d ? money(d * m / qty, 2) : ""}</td></tr>`; }).join("");
     direct += truckTot;
     // Mobilization and demobilization (per job): each mobilization moves every piece of equipment the bid's crews use
     // (largest count of each machine in any one crew), plus a lump of other costs; demob doubles it when checked.
@@ -2056,6 +2185,7 @@ ${text}`;
       `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(contract)}</td><td></td></tr>` +
       `<tr class="sub"><td>Crew time</td><td colspan="10">${fmt(hrsT, 0)} crew hours = ${fmt(L.week > 0 ? hrsT / L.week : 0, 1)} crew weeks at ${fmt(L.week, 0)} hr (${fmt(L.days > 0 ? L.week / L.days : 0, 1)} hr days); in the direct cost: burdened labor ${money(wageT)}, per diem and truck allowance ${money(allowT)}, fuel ${money(fuelT)}, small tools ${money(toolsT)}</td></tr>`;
     window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = contract;
+    renderQuotes();
   }
   $("bidbox").addEventListener("change", (e) => { const t = e.target, d = t.dataset; if (!d.t || !J || !JB) return; const num = () => parseFloat(t.value) || 0;
     if (d.t === "ovh") B.ovh = num();
@@ -2072,7 +2202,9 @@ ${text}`;
       MO[d.k] = d.k === "demob" ? t.checked : d.k === "pieces" && t.value === "" ? null : num(); }
     else if (d.t === "truck") { if (!JB.trucks) JB.trucks = bidTruckDefaults(); JB.trucks[+d.i][d.k] = (d.k === "desc" || d.k === "src") ? t.value : num(); }
     else if (d.t === "cust") JB.custom[+d.i][d.k] = d.k === "qty" ? num() : t.value;
-    else if (d.t === "item") { const o = JB.items[d.i] = JB.items[d.i] || {}; if (d.k === "qty") o.qty = t.value === "" ? null : num(); else if (d.k === "crew") o.crew = t.value; else if (d.k === "mat") o.mat = num(); }
+    else if (d.t === "item") { const o = JB.items[d.i] = JB.items[d.i] || {}; if (d.k === "qty") o.qty = t.value === "" ? null : num(); else if (d.k === "crew") o.crew = t.value; else if (d.k === "mat") { o.mat = num(); delete o.matQuote; }
+      else if (d.k === "matq" && t.value) { const [qid, lid] = t.value.split("|"), q = QUOTES.find(x => x.id === qid), ln = q && (q.items || []).find(x => x.id === lid);
+        if (ln && ln.unitPrice != null) { o.mat = ln.unitPrice; o.matQuote = { id: qid, line: lid, vendor: q.vendor, quoteNo: q.quoteNo || "" }; } } }
     B.touched = true; saveBid(d.t === "ovh" || d.t === "mk" || d.t === "lab" || d.t === "wage" || d.t === "eq" || d.t === "crew" ? "rates" : "job");
     setTimeout(() => { const ae = document.activeElement, f = ae && ae.dataset ? ae.dataset.f : null; renderBid();
       if (f) { const el = [...$("bidbox").querySelectorAll("[data-f]")].find(x => x.dataset.f === f); if (el) { el.focus(); if (el.select) el.select(); } } }, 0); });
@@ -2417,7 +2549,7 @@ ${text}`;
         if (!jobs.length) $("status").textContent = "No jobs in the database yet. Build one above, or run the import.";
       } catch (e) { $("status").textContent = "The database did not load the jobs. " + e.message; api.mode = "local"; api.on = false; showPersist(); await loadLocalFiles(); }
     } else { api.mode = "local"; showPersist(); await loadLocalFiles(); }
-    persistArmed = true; window.__wpm.ready = true;
+    persistArmed = true; window.__wpm.ready = true; loadQuotes();
   })();
 })();
 
