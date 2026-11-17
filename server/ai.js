@@ -10,6 +10,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const MODEL = 'claude-opus-5-5';
 const MAX_TURNS = 30;
 const MAX_CHARS = 200000; // whole conversation, page text included
+const EFFORTS = ['low', 'medium'];
 
 function createClient(apiKey) {
   return apiKey ? new Anthropic({ apiKey }) : null;
@@ -45,10 +46,12 @@ function mountAi(app, { requireUser, client }) {
     const messages = cleanMessages(req.body);
     if (!messages) return res.status(400).json({ code: 'INVALID', message: 'messages must be 1-30 user/assistant text turns, starting and ending with the user.' });
 
+    // Chat runs at low effort; reading a plan set for its earthwork requirements asks for medium.
+    const effort = EFFORTS.includes(req.body.effort) ? req.body.effort : 'low';
     const stream = client.beta.messages.stream({
       model: MODEL,
       max_tokens: 16000,
-      output_config: { effort: 'low' }, // short chat answers
+      output_config: { effort },
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default', // a declined request is retried on a fallback model in the same call
       messages,

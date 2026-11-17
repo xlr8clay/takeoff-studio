@@ -741,6 +741,8 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       if (!text.trim()) throw new Error("no readable text in the PDFs");
       speclog(`Reading ${used.length} page(s): ${used.slice(0, 12).join(", ")}${used.length > 12 ? "\u2026" : ""}`);
       let sample = null; if (window.claude && window.claude.use) { try { sample = await claude.use("sample"); } catch (e) { sample = null; speclog(`Claude reading not available here (${e.code || e.message || e}); keyword search used instead.`); } }
+      // Off claude.ai, the studio server reads the documents (needs ANTHROPIC_API_KEY there); keyword search if it can't.
+      if (!sample && api.on && window.studioServerJson) sample = { json: (p) => window.studioServerJson(p), server: true };
       let spec;
       if (sample) {
         const prompt = `You are a senior earthwork estimator reading a geotechnical report and civil plan notes for a sitework takeoff. From the document text below, extract every requirement that changes earthwork quantities. Reply with only one JSON object of this shape (numbers in INCHES unless named otherwise; null when the documents do not say):
@@ -750,7 +752,8 @@ td.num { font-family: var(--mono); font-size: 12.5px }
 Give rigid (concrete) sections as concrete_pavement, pavement_heavy and pavement_light types where the report distinguishes heavy and light duty; give asphalt sections only if no concrete section exists. Give the building pad section as slab thickness plus any base or select fill directly under the slab. Do not invent values.
 
 ${text}`;
-        spec = await sample.json(prompt, { modelTier: "default" });
+        try { spec = await sample.json(prompt, { modelTier: "default" }); }
+        catch (e) { if (!sample.server) throw e; speclog(`Server reading failed (${e.message || e.code || e}); keyword search used instead.`); sample = null; spec = regexSpec(text); }
       } else { spec = regexSpec(text); }
       const changed = applySpec(spec, up.pdfs.map(p => p.name).join(", "));
       fdone("spec", sample ? "ok" : "warn", (sample ? "Read with Claude. " : "Read by keyword search only; open this page in the Claude viewer for a full reading. ") + (changed.length ? `Applied: ${changed.join("; ")}.` : "Nothing in the documents mapped onto this job's inputs; the defaults on the left stand."));
@@ -2318,7 +2321,7 @@ ${text}`;
   // Off claude.ai, the studio server answers instead (POST /api/ai/chat streams plain text; the API key stays on the server).
   var serverSample = function (msgs, opts) {
     opts = opts || {};
-    return fetch("api/ai/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: msgs }), signal: opts.signal }).then(function (r) {
+    return fetch("api/ai/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: msgs, effort: opts.effort }), signal: opts.signal }).then(function (r) {
       if (!r.ok) {
         return r.json().catch(function () { return {}; }).then(function (b) {
           var e = new Error(r.status === 404 || r.status === 405 ? "AI chat is not available in this view. Open the studio from its server, or on claude.ai while signed in to Claude." : (b.message || ("HTTP " + r.status)));
@@ -2335,6 +2338,14 @@ ${text}`;
         });
       };
       return pump();
+    });
+  };
+  // Plan reading (readSpec) uses the same route off claude.ai: one prompt in, one JSON object back.
+  window.studioServerJson = function (prompt) {
+    return serverSample([{ role: "user", content: prompt }], { effort: "medium" }).then(function (r) {
+      var t = (r && r.text) || "", a = t.indexOf("{"), b = t.lastIndexOf("}");
+      if (a < 0 || b <= a) throw new Error("Claude's reply had no JSON object");
+      return JSON.parse(t.slice(a, b + 1));
     });
   };
   var getSample = function () {

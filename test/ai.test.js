@@ -59,8 +59,13 @@ test('AI chat needs a login, streams text, and sends the right request', async (
     assert.equal(client.calls[0].model, MODEL);
     assert.deepEqual(client.calls[0].messages, ask.messages);
     assert.equal(client.calls[0].fallbacks, 'default');
+    assert.equal(client.calls[0].output_config.effort, 'low');
+    assert.equal((await call('POST', '/api/ai/chat', { ...ask, effort: 'medium' })).status, 200);
+    assert.equal(client.calls[1].output_config.effort, 'medium');
+    assert.equal((await call('POST', '/api/ai/chat', { ...ask, effort: 'max' })).status, 200);
+    assert.equal(client.calls[2].output_config.effort, 'low');
     assert.equal((await call('POST', '/api/ai/chat', { messages: [] })).status, 400);
-    assert.equal(client.calls.length, 1);
+    assert.equal(client.calls.length, 3);
   } finally { server.close(); }
 });
 
