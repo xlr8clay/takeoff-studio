@@ -441,7 +441,7 @@ td.num { font-family: var(--mono); font-size: 12.5px }
   function jobFromExport(D) {
     const j = { name: D.name, sub: `${D.frame} \u00b7 ${fmt(D.nx)} \u00d7 ${fmt(D.ny)} cells at ${D.cell} ft`, nx: D.nx, ny: D.ny, x0: D.x0, y0: D.y0, cell: D.cell, zbase: D.zbase,
       eg: b64(D.eg, Int16Array), fg: b64(D.fg, Int16Array), reg: b64(D.reg, Uint8Array), dist10: b64(D.dist10, Uint8Array), near: b64(D.near, Uint8Array),
-      regions: D.regions.map(r => ({ name: r.name, type: r.type, section_in: r.section_in, rings: r.rings, moisture_in: r.moisture_in, finish_elev: r.finish_elev })), limitsRings: D.limits, crs: D.crs || null, crsName: D.crs_name || null, aerialUrl: D.aerial || null, gradingUrl: D.grading || null, utilities: D.utilities || null, extras: D.extras || null, xsec: D.xsec ? b64(D.xsec, Int16Array) : null, phase: D.phase ? b64(D.phase, Uint8Array) : null, phaseNames: D.phase_names || null, sourceDoc: D, DS: Math.max(1, Math.min(4, Math.round(2600 / Math.max(D.nx, D.ny)))),
+      regions: D.regions.map(r => ({ name: r.name, type: r.type, section_in: r.section_in, rings: r.rings, moisture_in: r.moisture_in, finish_elev: r.finish_elev })), limitsRings: D.limits, crs: D.crs || null, crsName: D.crs_name || null, aerialUrl: D.aerial || null, gradingUrl: D.grading || null, utilities: D.utilities || null, extras: D.extras || null, bid: D.bid || null, xsec: D.xsec ? b64(D.xsec, Int16Array) : null, phase: D.phase ? b64(D.phase, Uint8Array) : null, phaseNames: D.phase_names || null, sourceDoc: D, DS: Math.max(1, Math.min(4, Math.round(2600 / Math.max(D.nx, D.ny)))),
       defaults: { strip: D.spec.strip_in, shrink: 0, swell: 0, moist: 6, overbuild: 1 },
       basis: D.basis || [
         "Surfaces: existing ground from the C-GRAD-PL survey contours and shots; finish grade from the plan's 3D feature lines, 183 spot grades and contours. Both are constrained TINs sampled on a 1 ft grid, Texas South Central state plane feet.",
@@ -1707,7 +1707,10 @@ ${text}`;
       { id: "pipe", name: "Pipe crew", eq: [{ id: "exc", n: 1 }, { id: "loader", n: 1 }, { id: "comp", n: 1 }], labor: 3, laborRate: 38, prod: 25, unit: "LF" },
       { id: "struct", name: "Structure crew", eq: [{ id: "exc", n: 1 }], labor: 2, laborRate: 38, prod: 0.5, unit: "EA" }] });
   let B = bidDefaults();
-  let JB = null, JBname = null;
+  let JB = null, JBname = null, BG = null;   // BG holds the company rates while a job that brings its own rate set (job file key "bid") is open
+  const BIDWARN = "The equipment rates, crew production and trucking prices below are examples that show how the sheet works. Replace them with your own before you use any total.";
+  // A job's own rate set is saved with that job's bid (items.__rates), never into the company rate library.
+  const jobRates = () => { const c = BG || B; return { ovh: c.ovh, markup: c.markup || 0, touched: true, seq: 1000, equip: JSON.parse(JSON.stringify(J.bid.equip)), crews: JSON.parse(JSON.stringify(J.bid.crews)) }; };
   function showPersist(extra) {
     const el = $("persist"); if (!el) return; el.hidden = false; el.className = api.mode;
     const who = api.user && api.user.name ? " · " + api.user.name : "";
@@ -1770,7 +1773,7 @@ ${text}`;
     }
   }
   function scheduleSync() { if (!persistArmed || !api.on || api.readOnly || !J) return; const job = J; const payload = collectState(); const sendRates = ratesDirty; ratesDirty = false; clearTimeout(job._timer); job._timer = setTimeout(() => pushSync(job, payload, sendRates), 600); }
-  const saveBid = (scope) => { try { localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} if (scope !== "job") ratesDirty = true; scheduleSync(); };
+  const saveBid = (scope) => { const own = !!(J && J.bid); if (own && JB) JB.items.__rates = B; try { if (!own) localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} if (scope !== "job" && !own) ratesDirty = true; scheduleSync(); };
   function applySaved(job) {
     const ed = job.savedEditor;
     if (ed && ed.utilities) job.utilities = ed.utilities;
@@ -1807,12 +1810,14 @@ ${text}`;
   }
   function renderBid() {
     const box = $("bidbox"); if (!box) return; box.hidden = !(J && res); if (!J || !res) return;
-    if (JBname !== J.name) { JB = null; if (api.on) JB = J.savedBid || null; else { try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} } if (!JB || !JB.items) JB = { items: {}, custom: [], trucks: null }; JBname = J.name; }
+    if (JBname !== J.name) { JB = null; if (api.on) JB = J.savedBid || null; else { try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} } if (!JB || !JB.items) JB = { items: {}, custom: [], trucks: null };
+      if (J.bid) { if (!BG) BG = B; const own = JB.items.__rates; B = (own && own.equip && own.crews) ? own : jobRates(); } else if (BG) { B = BG; BG = null; }
+      JBname = J.name; }
     const trucks = JB.trucks || bidTruckDefaults();
     const inp = (t, i, k, v, w, kind) => `<input ${kind || 'type="number" min="0" step="any"'} data-t="${t}" data-i="${bEsc(i)}" data-k="${k}" data-f="${t}|${bEsc(i)}|${k}" value="${bEsc(v)}" style="width:${w}px">`;
     const txt = 'type="text"';
     const del = (a, i, j) => `<button type="button" class="bx" data-a="${a}" data-i="${i}"${j == null ? "" : ` data-j="${j}"`} title="Remove">x</button>`;
-    $("bidwarn").hidden = !!B.touched; if (document.activeElement !== $("bid-ovh")) $("bid-ovh").value = B.ovh; if (document.activeElement !== $("bid-mk")) $("bid-mk").value = B.markup || 0;
+    $("bidwarn").textContent = J.bid ? (J.bid.note || BIDWARN) : BIDWARN; $("bidwarn").hidden = J.bid ? false : !!B.touched; if (document.activeElement !== $("bid-ovh")) $("bid-ovh").value = B.ovh; if (document.activeElement !== $("bid-mk")) $("bid-mk").value = B.markup || 0;
     $("bideq").tBodies[0].innerHTML = B.equip.map((q, i) => `<tr><td>${inp("eq", i, "name", q.name, 200, txt)}</td><td class="num">${inp("eq", i, "rate", q.rate, 80)}</td><td>${del("deleq", i)}</td></tr>`).join("");
     $("bidcrew").tBodies[0].innerHTML = B.crews.map((c, i) => { const r = crewRate(c);
       const mem = c.eq.map((m, j) => { const q = B.equip.find(x => x.id === m.id); return q ? `<span class="chip">${m.n} x ${bEsc(q.name)}${del("delmem", i, j)}</span>` : ""; }).join("");
@@ -1826,13 +1831,13 @@ ${text}`;
       `<tr class="total"><td>All trucking</td><td></td><td></td><td></td><td class="num">${fmt(loadTot)}</td><td></td><td class="num">${money(truckTot)}</td><td></td></tr>`;
     const items = bidItems().concat(JB.custom.map((c, i) => ({ key: c.key, desc: c.desc, unit: c.unit, qty: c.qty || 0, crew: "", ci: i })));
     const mo = 1 + (B.ovh || 0) / 100, m = mo * (1 + (B.markup || 0) / 100); let direct = 0, leT = 0, matT = 0;
-    const body = items.map(it => { const o = JB.items[it.key] || {}, cust = it.ci != null, qty = !cust && o.qty != null ? o.qty : it.qty, cid = o.crew != null ? o.crew : it.crew, c = B.crews.find(x => x.id === cid);
+    const body = items.map(it => { const o = JB.items[it.key] || {}, cust = it.ci != null, qty = !cust && o.qty != null ? o.qty : it.qty, cid = o.crew != null ? o.crew : (J.bid && J.bid.crewFor && J.bid.crewFor[it.key] != null ? J.bid.crewFor[it.key] : it.crew), c = B.crews.find(x => x.id === cid);
       const hrs = c && c.prod > 0 ? qty / c.prod : 0, le = c ? hrs * crewRate(c) : 0, mat = (o.mat || 0) * qty, d = le + mat; direct += d; leT += le; matT += mat;
       const k = bEsc(it.key), warn = c && c.unit !== it.unit ? ` <span class="bwarn" title="This crew produces in ${c.unit} per hour but the item is measured in ${it.unit}">check unit</span>` : "";
       const name = cust ? inp("cust", it.ci, "desc", it.desc, 230, txt) + del("delitem", it.ci) : bEsc(it.desc);
       const unit = cust ? `<select data-t="cust" data-i="${it.ci}" data-k="unit" data-f="cust|${it.ci}|unit">${BUNITS.map(u => `<option${u === it.unit ? " selected" : ""}>${u}</option>`).join("")}</select>` : it.unit;
       const qcell = cust ? inp("cust", it.ci, "qty", it.qty, 84) : `<input type="number" min="0" step="any" data-t="item" data-i="${k}" data-k="qty" data-f="item|${k}|qty" value="${o.qty != null ? o.qty : ""}" placeholder="${fmt(it.qty)}" title="From the takeoff: ${fmt(it.qty)} ${it.unit}. Type to override, clear to go back." style="width:84px">`;
-      const crew = `<select data-t="item" data-i="${k}" data-k="crew" data-f="item|${k}|crew"><option value="">no crew</option>${B.crews.map(x => `<option value="${x.id}"${x.id === cid ? " selected" : ""}>${bEsc(x.name)} (${fmt(x.prod, x.prod < 10 ? 1 : 0)} ${x.unit}/hr)</option>`).join("")}</select>`;
+      const crew = `<select data-t="item" data-i="${k}" data-k="crew" data-f="item|${k}|crew"><option value="">no crew</option>${B.crews.map(x => `<option value="${x.id}"${x.id === cid ? " selected" : ""}>${bEsc(x.name)} (${fmt(x.prod, x.prod < 1 ? 2 : x.prod < 10 ? 1 : 0)} ${x.unit}/hr)</option>`).join("")}</select>`;
       return `<tr><td>${name}</td><td class="num">${qcell}</td><td>${unit}</td><td>${crew}${warn}</td><td class="num">${hrs ? fmt(hrs, 1) : ""}</td><td class="num">${le ? money(le) : ""}</td><td class="num">${inp("item", it.key, "mat", o.mat || "", 76)}</td><td class="num">${mat ? money(mat) : ""}</td><td class="num">${money(d)}</td><td class="num">${money(d * m)}</td><td class="num">${qty > 0 && d ? money(d * m / qty, 2) : ""}</td></tr>`; }).join("");
     direct += truckTot;
     $("biditems").tBodies[0].innerHTML = body +
@@ -1869,7 +1874,7 @@ ${text}`;
     else if (a === "delitem") { delete JB.items[JB.custom[i].key]; JB.custom.splice(i, 1); }
     else if (a === "copy") { const rows = (id) => [...$(id).rows].map(r => [...r.cells].map(c => { const el = c.querySelector("input,select"); return el ? (el.tagName === "SELECT" ? (el.selectedOptions[0] ? el.selectedOptions[0].textContent : "") : (el.value || el.placeholder || "")) : c.textContent; }).join("\t")).join("\n");
       navigator.clipboard.writeText(["bideq", "bidcrew", "bidtruck", "biditems"].map(rows).join("\n\n")); return; }
-    else if (a === "reset") { if (t.dataset.arm !== "1") { t.dataset.arm = "1"; t.textContent = "Click again to reset"; return; } t.dataset.arm = ""; t.textContent = "Reset to example rates"; B = bidDefaults(); saveBid("rates"); renderBid(); return; }
+    else if (a === "reset") { if (t.dataset.arm !== "1") { t.dataset.arm = "1"; t.textContent = "Click again to reset"; return; } t.dataset.arm = ""; t.textContent = "Reset to example rates"; if (J.bid) B = jobRates(); else B = bidDefaults(); saveBid("rates"); renderBid(); return; }
     else return;
     const rateAction = a === "addeq" || a === "deleq" || a === "addcrew" || a === "delcrew" || a === "delmem";
     B.touched = true; saveBid(rateAction ? "rates" : "job"); renderBid(); });
@@ -2161,7 +2166,7 @@ ${text}`;
   }
   async function loadLocalFiles() {
     try { const v = localStorage.getItem(BKEY); if (v) { const o = JSON.parse(v); if (o && o.equip && o.crews) B = o; } } catch (e) {}
-    for (const f of ["data.json", "bucees.json", "va.json", "dunant.json", "alamo_base.json", "alamo_alt.json", "innovation.json", "innovation_p2.json", "innovation_p3.json"]) {
+    for (const f of ["data.json", "bucees.json", "va.json", "dunant.json", "alamo_base.json", "alamo_alt.json", "innovation.json", "innovation_p2.json", "innovation_p3.json", "stony.json"]) {
       try { const D = await (await fetch(f)).json(); const job = jobFromExport(D); jobs.push(job); addJobOption(job); if (jobs.length === 1) { $("jobpick").value = "0"; openJob(job); } }
       catch (e) { $("status").textContent = `${f} could not load; upload a job above. ${e}`; }
     }

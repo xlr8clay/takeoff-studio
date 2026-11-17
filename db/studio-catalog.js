@@ -12,6 +12,8 @@
  * data.json is Building 820 Parking Lot at Brooks City Base (its `name` field). The filename
  * is historical; it is not a second copy of another job.
  *
+ * stony.json is Stony Point HS Additions & Renovations Package 2 (Round Rock ISD), its own project.
+ *
  * Buc-ee's grid attaches to the existing sample project (ce08cc827c). It does not create
  * a second project and it does not touch the $18,405,662.10 bid.
  */
@@ -141,6 +143,20 @@ const STUDIO_JOBS = [
     aerial: 'innovation_p3_aerial.png',
     grading: 'innovation_p3_grading.png',
     extraFlags: [INNOVATION_REF_FLAG, 'grid is Phase 3 (Buildings 4-7)'],
+  },
+  {
+    key: 'stony',
+    file: 'stony.json',
+    projectId: 'proj-stony-point-hs',
+    projectName: 'Stony Point HS Additions & Renovations, Package 2',
+    location: 'Round Rock ISD, Round Rock TX',
+    versionId: 'ew-stony',
+    scenarioKey: 'stony',
+    scenarioRole: 'site',
+    sort: 9,
+    aerial: 'stony_aerial.png',
+    grading: 'stony_grading.png',
+    projectFlags: ['geotechnical report cited on S001 is not in the bid documents', 'the file carries its own equipment, crew and production rates from the HeavyBid cost report 26-1-085 (key bid); they are not loaded into the company rate library'],
   },
 ];
 
