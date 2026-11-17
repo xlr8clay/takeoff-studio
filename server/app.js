@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const express = require('express');
 const { RepoError } = require('../db/repo');
 const { STUDIO_JOBS } = require('../db/studio-catalog');
+const { mountAi } = require('./ai');
 const {
   authMiddleware, requireUser, requireWriter, login, setSessionCookie, clearSessionCookie,
 } = require('./auth');
@@ -13,7 +14,7 @@ function jobByKey(jobs, key) {
   return jobs.find((j) => j.key === key || j.versionId === key || j.scenario_key === key);
 }
 
-function createApp({ repo, root, password = '' }) {
+function createApp({ repo, root, password = '', aiClient = null }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json({ limit: '80mb' }));
@@ -242,6 +243,8 @@ function createApp({ repo, root, password = '' }) {
     try { res.json(await repo.report(req.params.name, req.query.project_id ? { project_id: req.query.project_id } : {}, { limit: 500 })); }
     catch (err) { next(err); }
   });
+
+  mountAi(app, { requireUser, client: aiClient });
 
   // Job grids and imagery are the company record. With a password set, they are not served anonymously.
   app.use((req, res, next) => {

@@ -2315,8 +2315,31 @@ ${text}`;
   var hist = [], busy = false, ctl = null, sampleP = null;
   var add = function (cls, t) { var d = document.createElement("div"); d.className = "aimsg " + cls; d.textContent = t; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; };
   var hello = function () { log.innerHTML = ""; hist = []; add("n", "Ask anything about the job on screen, or about earthwork takeoff in general. Answers come from Claude and can be wrong; check numbers against the tables."); };
+  // Off claude.ai, the studio server answers instead (POST /api/ai/chat streams plain text; the API key stays on the server).
+  var serverSample = function (msgs, opts) {
+    opts = opts || {};
+    return fetch("api/ai/chat", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: msgs }), signal: opts.signal }).then(function (r) {
+      if (!r.ok) {
+        return r.json().catch(function () { return {}; }).then(function (b) {
+          var e = new Error(r.status === 404 || r.status === 405 ? "AI chat is not available in this view. Open the studio from its server, or on claude.ai while signed in to Claude." : (b.message || ("HTTP " + r.status)));
+          e.code = b.code || ("HTTP_" + r.status); e.shown = true; throw e;
+        });
+      }
+      if (!r.body || !r.body.getReader) return r.text().then(function (t) { if (opts.onText) opts.onText({ text: t }); return { text: t }; });
+      var rd = r.body.getReader(), dec = new TextDecoder(), text = "";
+      var pump = function () {
+        return rd.read().then(function (s) {
+          if (s.done) { text += dec.decode(); return { text: text }; }
+          text += dec.decode(s.value, { stream: true }); if (opts.onText) opts.onText({ text: text });
+          return pump();
+        });
+      };
+      return pump();
+    });
+  };
   var getSample = function () {
-    if (!sampleP) sampleP = (window.claude && window.claude.use) ? window.claude.use("sample").catch(function () { return null; }) : Promise.resolve(null);
+    if (!sampleP) sampleP = ((window.claude && window.claude.use) ? window.claude.use("sample").catch(function () { return null; }) : Promise.resolve(null))
+      .then(function (s) { return s || (window.fetch && location.protocol.indexOf("http") === 0 ? serverSample : null); });
     return sampleP;
   };
   var pageContext = function () {
@@ -2339,7 +2362,7 @@ ${text}`;
       });
     }).catch(function (e) {
       var c = e && e.code; out.className = "aimsg n";
-      out.textContent = c === "not_granted" ? "This page was not allowed to use Claude, so the chat is off. Reload and allow it to turn the chat on." : c === "rate_limited" ? "Claude is busy or the limit was reached. Try again in a minute." : (e && e.name === "AbortError") ? "Stopped." : "That did not go through (" + ((e && (e.message || e.code)) || "unknown error") + "). Try again.";
+      out.textContent = (e && e.shown) ? e.message : c === "not_granted" ? "This page was not allowed to use Claude, so the chat is off. Reload and allow it to turn the chat on." : c === "rate_limited" ? "Claude is busy or the limit was reached. Try again in a minute." : (e && e.name === "AbortError") ? "Stopped." : "That did not go through (" + ((e && (e.message || e.code)) || "unknown error") + "). Try again.";
     }).then(function () { busy = false; send.disabled = false; ctl = null; log.scrollTop = log.scrollHeight; });
   };
   btn.addEventListener("click", function () { btn.hidden = true; box.hidden = false; if (!log.children.length) hello(); text.focus(); });

@@ -13,6 +13,7 @@ const { createRepo } = require('../db/repo');
 const { runWithContext } = require('../db/context');
 const { importStudio } = require('../db/import-studio');
 const { createApp, listen } = require('./app');
+const { createClient } = require('./ai');
 
 function loadEnvFile() {
   const envPath = path.join(__dirname, '..', '.env');
@@ -50,10 +51,11 @@ async function main() {
       console.log(`studio jobs: ${imported.length} (${fresh} written, ${imported.length - fresh} unchanged)`);
     }
   });
-  const app = createApp({ repo, root, password });
+  const aiClient = createClient(process.env.ANTHROPIC_API_KEY);
+  const app = createApp({ repo, root, password, aiClient });
   const port = Number(process.env.PORT || 3000);
   const server = await listen(app, port);
-  console.log(`Earthwork Takeoff Studio on 0.0.0.0:${port} (${handle.label})`);
+  console.log(`Earthwork Takeoff Studio on 0.0.0.0:${port} (${handle.label}); AI chat ${aiClient ? 'on' : 'off (no ANTHROPIC_API_KEY)'}`);
   const shutdown = async () => {
     server.close();
     await handle.close();

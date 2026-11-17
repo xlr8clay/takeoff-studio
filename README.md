@@ -63,7 +63,7 @@ The Blueprint is [render.yaml](render.yaml). It defines one Node web service in 
 Before the first deploy, in the Render dashboard for that service (or when you sync the Blueprint):
 
 1. Set `APP_PASSWORD` (secret, `sync: false`). The process refuses to boot in production without it. Everyone on the team uses this shared password, then picks their own name. The name is one of the five employees, and the activity log stores that employee id.
-2. Leave `ANTHROPIC_API_KEY` unset unless you later add a server-side model call. The Ask AI button in the page only works inside claude.ai. This server does not call Anthropic.
+2. Set `ANTHROPIC_API_KEY` in the dashboard to turn on Ask AI. Off claude.ai, the page sends chat questions to `POST /api/ai/chat` (signed-in users only), which streams the answer from Claude (`claude-opus-5-5`, low effort, server-side refusal fallback). The key stays on the server; usage is billed to that key. Without it the chat says it is off. Inside claude.ai the page still uses claude.ai's own Claude access.
 3. Confirm the service region is Ohio, same as the database, so the internal connection string resolves.
 4. Sync the Blueprint, or create the web service from it. `preDeployCommand` runs `npm run db:migrate && npm run db:seed && npm run db:import-studio`.
 5. Health check is `GET /api/health`. It does not require a login.
