@@ -4,6 +4,7 @@ const express = require('express');
 const { RepoError } = require('../db/repo');
 const { STUDIO_JOBS } = require('../db/studio-catalog');
 const { mountAi } = require('./ai');
+const { mountPeople } = require('./people');
 const {
   authMiddleware, requireUser, requireWriter, login, setSessionCookie, clearSessionCookie,
 } = require('./auth');
@@ -245,6 +246,7 @@ function createApp({ repo, root, password = '', aiClient = null }) {
   });
 
   mountAi(app, { requireUser, client: aiClient });
+  mountPeople(app, { repo });
 
   // Job grids and imagery are the company record. With a password set, they are not served anonymously.
   app.use((req, res, next) => {

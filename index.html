@@ -35,6 +35,19 @@ header .sub { color: var(--muted); font-size: 13px; min-width: 0 }
 #gate label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 #gate input, #gate select { width: 100%; font: 14px var(--body); text-align: left; padding: 8px; }
 #gate .err { color: var(--err); margin: 0; min-height: 1.2em; }
+#people[hidden], #peoplebtn[hidden] { display: none; }
+#people { position: fixed; inset: 0; z-index: 80; background: rgba(27, 35, 48, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+#people .peoplebox { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--panel); border-radius: var(--r); box-shadow: var(--shadow); padding: 20px; display: grid; gap: 12px; }
+#people .peopletop { display: flex; justify-content: space-between; align-items: center; }
+#people h2 { font: 700 24px/1 var(--display); margin: 0; color: var(--fg); }
+#people table { width: 100%; border-collapse: collapse; font-size: 13px; }
+#people th, #people td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+#people th { color: var(--muted); font-weight: 600; }
+#people tr.gone td { color: var(--muted); }
+#people select, #people input { font: 13px var(--body); padding: 6px; }
+#people form { display: flex; flex-wrap: wrap; gap: 8px; }
+#people form input { flex: 1 1 140px; min-width: 0; }
+#people .err { color: var(--err); margin: 0; min-height: 1.2em; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 18px }
 .card h2, .panel h2 { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .1em; margin: 0 0 10px; color: var(--muted) }
 .cardhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px } .cardhead h2 { margin: 0 }
@@ -200,6 +213,7 @@ td.num { font-family: var(--mono); font-size: 12.5px }
   <span class="sub" id="jobsub">Drop a plan set; get stripping, cut, fill and subgrade quantities</span>
   <span id="status">Loading&hellip;</span>
   <span id="persist" hidden></span>
+  <button id="peoplebtn" type="button" class="quiet" hidden>People</button>
   <button id="signout" type="button" class="quiet" hidden>Sign out</button>
 </header>
 
@@ -397,6 +411,21 @@ td.num { font-family: var(--mono); font-size: 12.5px }
     <button class="primary" type="submit">Continue</button>
     <p class="err" id="gateerr"></p>
   </form>
+</div>
+
+<div id="people" hidden role="dialog" aria-modal="true" aria-labelledby="peoplehead">
+  <div class="peoplebox">
+    <div class="peopletop"><h2 id="peoplehead">People</h2><button id="peopleclose" type="button" class="quiet" aria-label="Close">x</button></div>
+    <p class="hint" style="margin:0">Everyone signs in with the one shared password and picks their name from this list. Edit can change takeoffs and bids; View can only look. Removing someone signs them out.</p>
+    <table class="peopletable"><thead><tr><th>Name</th><th>Access</th><th>Last sign-in</th><th></th></tr></thead><tbody id="peoplerows"></tbody></table>
+    <form id="peopleadd">
+      <input id="padd_first" placeholder="First name" maxlength="100" required aria-label="First name">
+      <input id="padd_last" placeholder="Last name (optional)" maxlength="100" aria-label="Last name">
+      <select id="padd_access" aria-label="Access"><option value="edit">Edit</option><option value="view">View only</option></select>
+      <button class="primary" type="submit">Add</button>
+    </form>
+    <p class="err" id="peopleerr"></p>
+  </div>
 </div>
 
 <button id="eggdot" type="button" title="?" aria-label="Music"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></button>
@@ -1719,7 +1748,49 @@ ${text}`;
     const who = api.user && api.user.name ? " · " + api.user.name : "";
     el.textContent = extra || (api.mode === "db" ? "Saved to the database" + who : api.mode === "readonly" ? "Read only" + who : "Local mode — this browser only");
     const out = $("signout"); if (out) out.hidden = !(api.on && api.user);
+    const pb = $("peoplebtn"); if (pb) pb.hidden = !(api.on && api.user && /^(role-)?admin$/.test(String(api.user.role)));
   }
+  // ---- People (admin only): who can pick a name at sign-in, and whether that name can edit
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  async function loadPeople() {
+    $("peopleerr").textContent = "";
+    try {
+      const rows = await apiFetch("/api/admin/people");
+      const me = api.user && api.user.employeeId;
+      $("peoplerows").innerHTML = rows.map((p) => {
+        const self = p.id === me, when = p.lastLogin ? new Date(p.lastLogin).toLocaleDateString() : "never";
+        const acc = p.active
+          ? `<select data-id="${esc(p.id)}" data-act="access" aria-label="Access for ${esc(p.name)}"${self ? " disabled" : ""}>${[["admin", "Admin"], ["edit", "Edit"], ["view", "View only"]].map(([v, t]) => `<option value="${v}"${p.access === v ? " selected" : ""}>${t}</option>`).join("")}</select>`
+          : "removed";
+        const btn = self ? "(you)" : `<button type="button" class="quiet" data-id="${esc(p.id)}" data-act="${p.active ? "remove" : "restore"}">${p.active ? "Remove" : "Restore"}</button>`;
+        return `<tr class="${p.active ? "" : "gone"}"><td>${esc(p.name)}</td><td>${acc}</td><td>${esc(when)}</td><td>${btn}</td></tr>`;
+      }).join("");
+    } catch (e) { $("peopleerr").textContent = e.message; }
+  }
+  async function changePerson(id, body, what) {
+    $("peopleerr").textContent = "";
+    try { await apiFetch("/api/admin/people/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(body) }); }
+    catch (e) { $("peopleerr").textContent = (what ? what + ": " : "") + e.message; }
+    loadPeople();
+  }
+  $("peoplebtn").addEventListener("click", () => { $("people").hidden = false; loadPeople(); });
+  $("peopleclose").addEventListener("click", () => { $("people").hidden = true; });
+  $("people").addEventListener("click", (e) => { if (e.target.id === "people") $("people").hidden = true; });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("people").hidden) $("people").hidden = true; });
+  $("peoplerows").addEventListener("change", (e) => { const t = e.target; if (t.dataset.act === "access") changePerson(t.dataset.id, { access: t.value }); });
+  $("peoplerows").addEventListener("click", (e) => {
+    const t = e.target.closest("button[data-act]"); if (!t) return;
+    const name = t.closest("tr").firstChild.textContent;
+    if (t.dataset.act === "remove" && !confirm(`Remove ${name}? They are signed out and drop off the sign-in list. You can restore them later.`)) return;
+    changePerson(t.dataset.id, { active: t.dataset.act === "restore" }, name);
+  });
+  $("peopleadd").addEventListener("submit", async (e) => {
+    e.preventDefault(); $("peopleerr").textContent = "";
+    try {
+      await apiFetch("/api/admin/people", { method: "POST", body: JSON.stringify({ firstName: $("padd_first").value, lastName: $("padd_last").value, access: $("padd_access").value }) });
+      $("padd_first").value = ""; $("padd_last").value = ""; loadPeople();
+    } catch (err) { $("peopleerr").textContent = err.message; }
+  });
   async function apiFetch(url, opts) {
     const res = await fetch(url, Object.assign({ credentials: "same-origin", headers: { "content-type": "application/json" } }, opts || {}));
     const text = await res.text(); let body = null; try { body = text ? JSON.parse(text) : null; } catch (e) { body = { message: text }; }
