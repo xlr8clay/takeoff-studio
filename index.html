@@ -1707,7 +1707,7 @@ ${text}`;
       { id: "pipe", name: "Pipe crew", eq: [{ id: "exc", n: 1 }, { id: "loader", n: 1 }, { id: "comp", n: 1 }], labor: 3, laborRate: 38, prod: 25, unit: "LF" },
       { id: "struct", name: "Structure crew", eq: [{ id: "exc", n: 1 }], labor: 2, laborRate: 38, prod: 0.5, unit: "EA" }] });
   let B = bidDefaults();
-  let JB = null, JBname = null, BG = null;   // BG holds the company rates while a job that brings its own rate set (job file key "bid") is open
+  let JB = null, JBname = null, BG = null, BJname = null;   // BG holds the company rates while a job that brings its own rate set (job file key "bid") is open
   const BIDWARN = "The equipment rates, crew production and trucking prices below are examples that show how the sheet works. Replace them with your own before you use any total.";
   // A job's own rate set is saved with that job's bid (items.__rates), never into the company rate library.
   const jobRates = () => { const c = BG || B; return { ovh: c.ovh, markup: c.markup || 0, touched: true, seq: 1000, equip: JSON.parse(JSON.stringify(J.bid.equip)), crews: JSON.parse(JSON.stringify(J.bid.crews)) }; };
@@ -1773,7 +1773,7 @@ ${text}`;
     }
   }
   function scheduleSync() { if (!persistArmed || !api.on || api.readOnly || !J) return; const job = J; const payload = collectState(); const sendRates = ratesDirty; ratesDirty = false; clearTimeout(job._timer); job._timer = setTimeout(() => pushSync(job, payload, sendRates), 600); }
-  const saveBid = (scope) => { const own = !!(J && J.bid); if (own && JB) JB.items.__rates = B; try { if (!own) localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} if (scope !== "job" && !own) ratesDirty = true; scheduleSync(); };
+  const saveBid = (scope) => { const own = !!(J && J.bid); if (own && JB && BJname === J.name) JB.items.__rates = B; try { if (!own) localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} if (scope !== "job" && !own) ratesDirty = true; scheduleSync(); };
   function applySaved(job) {
     const ed = job.savedEditor;
     if (ed && ed.utilities) job.utilities = ed.utilities;
@@ -1811,8 +1811,9 @@ ${text}`;
   function renderBid() {
     const box = $("bidbox"); if (!box) return; box.hidden = !(J && res); if (!J || !res) return;
     if (JBname !== J.name) { JB = null; if (api.on) JB = J.savedBid || null; else { try { const v = localStorage.getItem("wpm_bid_v1:" + J.name); if (v) JB = JSON.parse(v); } catch (e) {} } if (!JB || !JB.items) JB = { items: {}, custom: [], trucks: null };
-      if (J.bid) { if (!BG) BG = B; const own = JB.items.__rates; B = (own && own.equip && own.crews) ? own : jobRates(); } else if (BG) { B = BG; BG = null; }
       JBname = J.name; }
+    // rate set follows the open job (openJob sets JB directly when the database is on, so this is tracked apart from JBname)
+    if (BJname !== J.name) { if (J.bid) { if (!BG) BG = B; const own = JB.items.__rates; B = (own && own.equip && own.crews) ? own : jobRates(); } else if (BG) { B = BG; BG = null; } BJname = J.name; }
     const trucks = JB.trucks || bidTruckDefaults();
     const inp = (t, i, k, v, w, kind) => `<input ${kind || 'type="number" min="0" step="any"'} data-t="${t}" data-i="${bEsc(i)}" data-k="${k}" data-f="${t}|${bEsc(i)}|${k}" value="${bEsc(v)}" style="width:${w}px">`;
     const txt = 'type="text"';
