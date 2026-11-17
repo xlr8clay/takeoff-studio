@@ -12,6 +12,7 @@ const { seed } = require('../db/seed');
 const { createRepo } = require('../db/repo');
 const { runWithContext } = require('../db/context');
 const { importStudio } = require('../db/import-studio');
+const { importQuotes } = require('../db/import-quotes');
 const { createApp, listen } = require('./app');
 const { createClient } = require('./ai');
 
@@ -49,6 +50,7 @@ async function main() {
       const imported = await importStudio(repo, { root });
       const fresh = imported.filter((r) => !r.skipped).length;
       console.log(`studio jobs: ${imported.length} (${fresh} written, ${imported.length - fresh} unchanged)`);
+      for (const r of await importQuotes(repo)) console.log(`quote ${r.quote}: ${r.wrote ? 'written' : 'unchanged'}; prices ${r.applied}`);
     }
   });
   const aiClient = createClient(process.env.ANTHROPIC_API_KEY);

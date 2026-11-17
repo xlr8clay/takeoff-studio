@@ -451,7 +451,27 @@ function addStudioApi({ tx, insertRow, updateRowTx, getRowTx, storeFileTx, handl
     });
   }
 
+  /**
+   * Merge material prices into a job's saved bid, leaving everything else in the bid as it is.
+   * prices: { [bidItemKey]: { mat, matQuote } }. The job's revision is bumped too, so a page that has the job
+   * open gets a 409 on its next save and reloads these prices instead of writing its older bid over them.
+   */
+  function applyBidPrices(versionId, prices) {
+    return tx(async (t) => {
+      const cur = await getRowTx(t, 'ew_versions', versionId, { forUpdate: true });
+      if (!cur || cur.deleted_at) throw notFound('ew_versions', versionId);
+      const [bid] = await t.select().from(S.studio_bids).where(eq(S.studio_bids.version_id, versionId));
+      const items = bid && bid.items_json ? JSON.parse(bid.items_json) : {};
+      for (const [key, p] of Object.entries(prices || {})) items[key] = { ...(items[key] || {}), mat: n4(p.mat), ...(p.matQuote ? { matQuote: p.matQuote } : {}) };
+      if (!bid) await insertRow(t, 'studio_bids', { project_id: cur.project_id, version_id: versionId, rev: 1, items_json: JSON.stringify(items), custom_json: '[]', trucks_json: null, touched: false });
+      else await updateRowTx(t, 'studio_bids', bid.id, { items_json: JSON.stringify(items), rev: bid.rev + 1 });
+      const saved = await updateRowTx(t, 'ew_versions', versionId, { rev: cur.rev + 1 });
+      return { id: versionId, rev: saved.rev, applied: Object.keys(prices || {}).length };
+    });
+  }
+
   return {
+    applyBidPrices,
     importStudioVersion,
     listStudioJobs,
     getStudioVersion,

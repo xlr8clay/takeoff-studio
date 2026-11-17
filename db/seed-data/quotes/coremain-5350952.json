@@ -1,0 +1,31 @@
+{
+  "projectId": "proj-innovation-b2",
+  "quote": {
+    "id": "q-coremain-5350952",
+    "vendor": "Core & Main (Pflugerville)",
+    "quoteNo": "5350952",
+    "date": "2026-11-17",
+    "expires": "2026-12-17",
+    "type": "material",
+    "scope": "Utility materials: sewer, water, storm",
+    "notes": "Bid proposal 'CLS - CLAY DEERING BUDGET', Austin TX, bid date 11/25/2026, rep Cooper Scott. Quantities are the Innovation Building #2 Phases 2 and 3 takeoff. Prices valid 30 days from the quote if released for manufacture; subject to tariff, fuel and raw-material increases. Tax 0.00 on the quote ('actual taxes may vary'). The 8 rolls of 12x1000 ft green sewer detection tape are priced at $999,999.00 each on the quote ($7,999,992, nearly all of the $8,686,078.12 total): a placeholder, not carried; ask Core & Main for the real price. Section totals: sewer pipe $64,857.86, water $363,998.68, storm pipe $137,162.95, storm structures $53,774.91, wastewater manholes $55,597.40, cleanouts $10,694.32. Not quoted: the 33 FUTURE storm structures.",
+    "source": "CLS - CLAY DEERING BUDGET_Austin_TX_Bid#_5350952_11-17-2026_0410_PM.pdf",
+    "items": [
+      { "id": "l-ww-pipe", "description": "8 in PVC SDR26 HW sewer pipe (G), 14 ft", "unit": "LF", "qty": 7387, "unitPrice": 8.78, "ext": 64857.86 },
+      { "id": "l-tape", "description": "12x1000 ft green sewer detection tape (quote shows a $999,999.00 placeholder price, not carried)", "unit": "EA", "qty": 8, "unitPrice": null, "ext": null },
+      { "id": "l-water", "description": "8 in PVC C900 DR18 water pipe, 20 ft gasketed, with 1 Star 3108P restraint, 1 MJ 45 and 2 EZ Grip restraints (water section total per LF)", "unit": "LF", "qty": 25926, "unitPrice": 14.0399, "ext": 363998.68 },
+      { "id": "l-storm", "description": "24 in ADS N12 dual wall HDPE storm pipe, 20 ft, with one 24 in 45 bend (storm pipe section total per LF)", "unit": "LF", "qty": 6554, "unitPrice": 20.9281, "ext": 137162.95 },
+      { "id": "l-storm-st", "description": "Storm structure: 4x4x4.5 ft KO base, 1 VF riser, 48 in flat top, 2 grade rings, 32 in ring and cover", "unit": "EA", "qty": 21, "unitPrice": 2560.71, "ext": 53774.91 },
+      { "id": "l-ww-mh", "description": "48 in wastewater manhole: 2 ft base, cone with 34 in opening, 1 ft riser, 3 grade rings, press-seal boot, Cretex wrap, 32 in SAWS hinged ring and cover", "unit": "EA", "qty": 19, "unitPrice": 2926.1789, "ext": 55597.40 },
+      { "id": "l-co", "description": "8 in cleanout: 8x6 wye, 14 ft of 6 in SDR26, cleanout adapter, plug, CI lamp hole cover", "unit": "EA", "qty": 26, "unitPrice": 411.32, "ext": 10694.32 }
+    ]
+  },
+  "apply": [
+    { "line": "l-ww-pipe", "pipe": "Wastewater" },
+    { "line": "l-water", "pipe": "Water" },
+    { "line": "l-storm", "pipe": "Storm" },
+    { "line": "l-storm-st", "struct": { "sys": "Storm", "match": "^(?!.*FUTURE).*(inlet|junction)" } },
+    { "line": "l-ww-mh", "struct": { "sys": "Wastewater", "match": "manhole" } },
+    { "line": "l-co", "struct": { "sys": "Wastewater", "match": "cleanout" } }
+  ]
+}
