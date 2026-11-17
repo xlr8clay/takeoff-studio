@@ -1893,9 +1893,12 @@ ${text}`;
   // past otAfter hours at otMult, then for payroll burden: FUTA, SUTA, workers' comp, and GL when GL is rated on payroll.
   // Operated equipment rates already carry their operator and are not burdened again.
   const LABOR_DEFAULT = { week: 60, otAfter: 40, otMult: 1.5, futa: 0.6, suta: 2.7, wc: 0, gl: 0, glBasis: "payroll" };
-  const LABOR_OFF = { week: 40, otAfter: 40, otMult: 1.5, futa: 0, suta: 0, wc: 0, gl: 0, glBasis: "payroll" };
+  // jobs that bring their own rate set (HeavyBid crews at burdened rates): burden off, but the 60 hour week still applies
+  const LABOR_OFF = { week: 60, otAfter: 40, otMult: 1.5, futa: 0, suta: 0, wc: 0, gl: 0, glBasis: "payroll" };
   const labor = () => {
     if (!B.labor) B.labor = Object.assign({}, J && J.bid ? LABOR_OFF : LABOR_DEFAULT);
+    // 60 hour weeks are the company standard on every job: a rate set saved with the earlier 40 hour default moves to 60
+    if (!B.labor.v) { if (B.labor.week === 40) B.labor.week = 60; B.labor.v = 2; }
     if (!B.labor.wages) {
       // first open after operators and foremen were split out: the company laborer wage takes the crews' shared rate
       // and those crews drop their copy; crews with their own rate (a job's HeavyBid set) keep it as an override
