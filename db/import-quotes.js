@@ -43,28 +43,35 @@ async function importQuotes(repo, { dir = DIR } = {}) {
       const [link] = await repo.list('project_quotes', { project_id: spec.projectId, vendor_quote_id: q.id });
       if (!link) await repo.insert('project_quotes', { id: crypto.randomUUID(), project_id: spec.projectId, vendor_quote_id: q.id, link_source: 'manual' });
     }
+    // apply entries carry a rev (default 1); only entries newer than the rev already applied go in, so adding a
+    // line to a quote later prices that line without putting the earlier prices back over studio edits
     const marker = `quote.applied.${q.id}`.slice(0, 60);
     const done = await getSetting(repo, marker);
+    const doneRev = done ? (done.rev || 1) : 0;
+    const todo = (Array.isArray(spec.apply) ? spec.apply : []).filter((a) => (a.rev || 1) > doneRev);
     const applied = [];
-    if (!done && spec.projectId && Array.isArray(spec.apply)) {
+    if (todo.length && spec.projectId) {
       const lines = new Map((q.items || []).map((l) => [l.id, l]));
       const jobs = (await repo.listStudioJobs()).filter((j) => j.projectId === spec.projectId);
       for (const job of jobs) {
         const utilities = (job.editor && job.editor.utilities) || (await repo.getStudioDocument(job.versionId)).utilities;
         const { pipes, structs } = bidKeys(utilities);
-        const prices = {};
-        for (const a of spec.apply) {
+        const prices = {}, customs = [];
+        for (const a of todo) {
           const l = lines.get(a.line);
           if (!l || l.unitPrice == null) continue;
+          if (a.versions && !a.versions.includes(job.versionId)) continue;
           const matQuote = { id: q.id, line: l.id, vendor: q.vendor, quoteNo: q.quoteNo || '' };
           if (a.pipe) for (const [k, sys] of pipes) if (sys === a.pipe) prices[k] = { mat: l.unitPrice, matQuote };
           if (a.struct) { const re = new RegExp(a.struct.match, 'i'); for (const [k, s] of structs) if (s.sys === a.struct.sys && re.test(s.type)) prices[k] = { mat: l.unitPrice, matQuote }; }
+          if (a.custom) { const key = `q:${q.id}:${l.id}`; customs.push({ key, desc: a.custom.desc || l.description, unit: a.custom.unit || l.unit, qty: a.custom.qty != null ? a.custom.qty : l.qty }); prices[key] = { mat: l.unitPrice, matQuote }; }
         }
-        if (Object.keys(prices).length) { await repo.applyBidPrices(job.versionId, prices); applied.push(`${job.key}: ${Object.keys(prices).length} items`); }
+        if (Object.keys(prices).length) { await repo.applyBidPrices(job.versionId, prices, customs); applied.push(`${job.key}: ${Object.keys(prices).length} items`); }
       }
-      await repo.setSetting(marker, { at: new Date().toISOString(), jobs: applied });
+      const rev = Math.max(doneRev, ...todo.map((a) => a.rev || 1));
+      await repo.setSetting(marker, { rev, at: new Date().toISOString(), jobs: applied, earlier: done || null });
     }
-    out.push({ file: f, quote: q.id, wrote, applied: done ? 'already applied' : applied.join('; ') || 'nothing matched' });
+    out.push({ file: f, quote: q.id, wrote, applied: !todo.length ? 'already applied' : applied.join('; ') || 'nothing matched' });
   }
   return out;
 }

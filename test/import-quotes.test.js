@@ -20,10 +20,10 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
   const [r1] = await runWithContext({ request_id: 't' }, () => importQuotes(repo));
   assert.equal(r1.quote, 'q-coremain-5350952');
   assert.equal(r1.wrote, true);
-  assert.equal(r1.applied, 'phases-2-3: 6 items; phase-2: 6 items; phase-3: 6 items');
+  assert.equal(r1.applied, 'phases-2-3: 8 items; phase-2: 6 items; phase-3: 6 items');
 
   const q = await repo.getLibraryItem('quotes', 'q-coremain-5350952');
-  assert.equal(q.items.length, 7);
+  assert.equal(q.items.length, 8);
   const [link] = await repo.list('project_quotes', { project_id: 'proj-innovation-b2', vendor_quote_id: q.id });
   assert.ok(link);
 
@@ -39,6 +39,12 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
     assert.equal(mat('st:Wastewater cleanout'), 411.32);
     assert.equal(mat('st:Storm FUTURE'), undefined, 'FUTURE structures are not priced');
     assert.equal(items['pipe:Storm 24" size not labelled'].matQuote.vendor, 'Core & Main (Pflugerville)');
+    const custom = j.bid.custom || [];
+    if (j.versionId === 'ew-innovation-phases') {
+      assert.deepEqual(custom.map((c) => [c.desc, c.qty]), [['Sewer detection tape, 12x1000 ft rolls', 8], ['Fire hydrant assembly', 14]]);
+      assert.equal(items[custom[1].key].mat, 5500);
+      assert.equal(items[custom[0].key].mat, 10);
+    } else assert.equal(custom.length, 0, 'hydrants and tape only on the Phases 2 and 3 job');
   }
 
   // an estimator changes a price; the next start does not put the quote back
@@ -49,4 +55,15 @@ test('Core & Main quote prices the Innovation jobs once', async () => {
   assert.equal(r2.applied, 'already applied');
   const after = (await repo.listStudioJobs()).find((j) => j.versionId === 'ew-innovation-phases');
   assert.equal(after.bid.items['pipe:Water 8" size not labelled'].mat, 15);
+
+  // a database that took the first version of the quote (rev 1 marker) gets only the new lines
+  await repo.setSetting('quote.applied.q-coremain-5350952', { at: 'earlier' });
+  const fhKey = after.bid.custom.find((c) => c.desc === 'Fire hydrant assembly').key;
+  await repo.applyBidPrices(phases.versionId, { [fhKey]: { mat: 1 } });
+  const [r3] = await runWithContext({ request_id: 't' }, () => importQuotes(repo));
+  assert.equal(r3.applied, 'phases-2-3: 2 items');
+  const last = (await repo.listStudioJobs()).find((j) => j.versionId === 'ew-innovation-phases');
+  assert.equal(last.bid.items[fhKey].mat, 5500);
+  assert.equal(last.bid.items['pipe:Water 8" size not labelled'].mat, 15, 'earlier lines are not put back');
+  assert.equal(last.bid.custom.length, 2, 'custom lines are not added twice');
 });
