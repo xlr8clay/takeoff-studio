@@ -428,6 +428,13 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       <label><input type="checkbox" id="mob-demob" data-t="mob" data-k="demob" data-f="mob|demob"> Demob priced the same</label>
     </div>
     <p class="hint" id="mob-sum" style="margin:0 0 6px"></p>
+    <h3>Bonds and permits</h3>
+    <div class="ctl3d" style="margin:6px 0 4px">
+      <label>Bond <input type="number" id="fee-bondPct" data-t="fee" data-k="bondPct" data-f="fee|bondPct" min="0" max="20" step="0.01" style="width:64px"> % of the contract</label>
+      <label>Permits and fees <input type="number" id="fee-permits" data-t="fee" data-k="permits" data-f="fee|permits" min="0" step="1" style="width:90px"> $</label>
+      <label>for <input type="text" id="fee-permitNote" data-t="fee" data-k="permitNote" data-f="fee|permitNote" placeholder="e.g. SWPPP, grading permit" style="width:220px"></label>
+    </div>
+    <p class="hint" style="margin:0 0 6px">Permits are a direct cost and take overhead and markup. The bond is figured on the final contract, bond included, and is not marked up.</p>
     <h3>Bid items</h3>
     <div class="tablebox"><table id="biditems"><thead><tr><th>Bid item</th><th>Quantity</th><th>Unit</th><th>Crew</th><th>Crew hours</th><th>Labor and equipment</th><th>Material $ / unit</th><th>Material</th><th>Direct cost</th><th>Bid price</th><th>Unit price</th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="additem">Add bid item</button></p>
@@ -2021,18 +2028,25 @@ ${text}`;
     $("mob-demob").checked = !!MO.demob;
     $("mob-sum").textContent = `${fmt(MO.count || 0)} mobilization${MO.count === 1 ? "" : "s"} x (${fmt(pieces)} pieces x ${money(MO.perMove || 0)} + ${money(MO.other || 0)})${MO.demob ? " x 2 for demob" : ""} = ${money(mobCost)} direct cost.${MO.pieces == null ? ` Pieces counted from the crews on the bid items: ${fmt(autoPieces)}.` : ""}`;
     direct += mobCost;
+    // Bonds and permits (per job, kept in items like __mob)
+    const FE = JB.items.__fees = JB.items.__fees || { bondPct: 0, permits: 0, permitNote: "" };
+    for (const k of ["bondPct", "permits", "permitNote"]) { const el = $("fee-" + k); if (document.activeElement !== el) el.value = k === "permitNote" ? (FE[k] || "") : (FE[k] || 0); }
+    const permits = FE.permits || 0; direct += permits;
     // GL rated on revenue: grossed up so the premium is L.gl percent of the final contract including itself
     const glRev = L.glBasis === "revenue" && L.gl > 0 && L.gl < 100 ? direct * m * (L.gl / 100) / (1 - L.gl / 100) : 0;
+    const bp = FE.bondPct || 0, bond = bp > 0 && bp < 100 ? (direct * m + glRev) * (bp / 100) / (1 - bp / 100) : 0;
     $("biditems").tBodies[0].innerHTML = body +
+      (permits ? `<tr><td>Permits and fees${FE.permitNote ? ": " + bEsc(FE.permitNote) : ""}</td><td class="num">1</td><td>LS</td><td colspan="5"></td><td class="num">${money(permits)}</td><td class="num">${money(permits * m)}</td><td class="num">${money(permits * m, 2)}</td></tr>` : "") +
       (mobCost ? `<tr><td>Mobilization and demobilization</td><td class="num">1</td><td>LS</td><td colspan="5"></td><td class="num">${money(mobCost)}</td><td class="num">${money(mobCost * m)}</td><td class="num">${money(mobCost * m, 2)}</td></tr>` : "") +
       `<tr><td>Trucking, from the table above</td><td class="num">${fmt(loadTot)}</td><td>loads</td><td colspan="5"></td><td class="num">${money(truckTot)}</td><td class="num">${money(truckTot * m)}</td><td class="num">${loadTot ? money(truckTot * m / loadTot, 2) : ""}</td></tr>` +
       `<tr class="sub"><td>Direct cost</td><td colspan="4"></td><td class="num">${money(leT)}</td><td></td><td class="num">${money(matT)}</td><td class="num">${money(direct)}</td><td></td><td></td></tr>` +
       `<tr class="sub"><td>Overhead and indirect, ${fmt(B.ovh || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (mo - 1))}</td><td></td></tr>` +
       `<tr class="sub"><td>Markup, ${fmt(B.markup || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (m - mo))}</td><td></td></tr>` +
       (glRev ? `<tr class="sub"><td>General liability, ${fmt(L.gl, 2)}% of the contract</td><td colspan="8"></td><td class="num">${money(glRev)}</td><td></td></tr>` : "") +
-      `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(direct * m + glRev)}</td><td></td></tr>` +
+      (bond ? `<tr class="sub"><td>Performance and payment bond, ${fmt(bp, 2)}% of the contract</td><td colspan="8"></td><td class="num">${money(bond)}</td><td></td></tr>` : "") +
+      `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(direct * m + glRev + bond)}</td><td></td></tr>` +
       `<tr class="sub"><td>Crew time</td><td colspan="10">${fmt(hrsT, 0)} crew hours = ${fmt(L.week > 0 ? hrsT / L.week : 0, 1)} crew weeks at ${fmt(L.week, 0)} hr (${fmt(L.days > 0 ? L.week / L.days : 0, 1)} hr days); in the direct cost: burdened labor ${money(wageT)}, per diem and truck allowance ${money(allowT)}, fuel ${money(fuelT)}, small tools ${money(toolsT)}</td></tr>`;
-    window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = direct * m + glRev;
+    window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = direct * m + glRev + bond;
   }
   $("bidbox").addEventListener("change", (e) => { const t = e.target, d = t.dataset; if (!d.t || !J || !JB) return; const num = () => parseFloat(t.value) || 0;
     if (d.t === "ovh") B.ovh = num();
@@ -2044,6 +2058,7 @@ ${text}`;
       else if (d.k === "laborRate" && t.value === "") delete c.laborRate;
       else c[d.k] = (d.k === "name" || d.k === "unit") ? t.value : num(); }
     else if (d.t === "wage") labor().wages[d.k] = num();
+    else if (d.t === "fee") { const FE = JB.items.__fees = JB.items.__fees || { bondPct: 0, permits: 0, permitNote: "" }; FE[d.k] = d.k === "permitNote" ? t.value : num(); }
     else if (d.t === "mob") { const MO = JB.items.__mob = JB.items.__mob || { count: 1, perMove: 0, pieces: null, other: 0, demob: true };
       MO[d.k] = d.k === "demob" ? t.checked : d.k === "pieces" && t.value === "" ? null : num(); }
     else if (d.t === "truck") { if (!JB.trucks) JB.trucks = bidTruckDefaults(); JB.trucks[+d.i][d.k] = (d.k === "desc" || d.k === "src") ? t.value : num(); }
