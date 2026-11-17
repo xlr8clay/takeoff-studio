@@ -1,0 +1,29 @@
+{
+  "name": "takeoff-db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WPM Earthwork Takeoff Studio: static studio, Node API, Drizzle Postgres/PGlite",
+  "main": "db/repo.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node db/migrate.js",
+    "db:seed": "node db/seed.js",
+    "db:import-project": "node db/import-project.js",
+    "db:import-studio": "node db/import-studio.js",
+    "db:reset": "node db/reset.js",
+    "start": "node server/index.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "drizzle-orm": "^0.45.4",
+    "express": "^4.21.2",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.11"
+  }
+}

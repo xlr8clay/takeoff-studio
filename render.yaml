@@ -1,0 +1,26 @@
+# Render Blueprint for the Earthwork Takeoff Studio.
+# The Postgres instance wpm-takeoff-studio-db already exists (Basic 1 GB, Ohio).
+# This file does not create a database. It only points the web service at that instance.
+# Do not put passwords, DATABASE_URL, or API keys in this file.
+
+services:
+  - type: web
+    name: wpm-takeoff-studio
+    runtime: node
+    region: ohio
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    preDeployCommand: npm run db:migrate && npm run db:seed && npm run db:import-studio
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wpm-takeoff-studio-db
+          property: connectionString
+      - key: APP_PASSWORD
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

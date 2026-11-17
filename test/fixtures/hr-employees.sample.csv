@@ -1,0 +1,4 @@
+external_hr_id,employee_no,first_name,last_name,display_name,title_role,department,phone,email,hire_date,status,home_yard_or_office,notes
+TEST-HR-001,T001,Test,PersonA,"Test PersonA",operator,Field,,,,active,"Test Yard","fixture row - not a real person"
+TEST-HR-002,T002,Test,PersonB,,laborer,Field,,,,Active,,"fixture row, quoted comma"
+,,,Missing,Ids,,,,,,,,"should be rejected: no id"

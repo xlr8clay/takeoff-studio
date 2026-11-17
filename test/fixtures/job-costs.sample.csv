@@ -1,0 +1,5 @@
+project_no,cost_code,cost_type,qty,unit,amount,cost_date,source_ref,line_key,notes
+TEST-JC-1,04,labor,10,HR,1000.50,2026-01-15,FIX-1,L1,fixture
+TEST-JC-1,04,equipment,,,"2,000",2026-01-15,FIX-2,,bad amount (comma) -> error row
+TEST-JC-1,13,trucking,5,LOAD,750,2026-01-16,FIX-3,,fixture
+TEST-JC-1,99,other,,,1,2026-01-16,FIX-4,,unknown cost code -> error row
