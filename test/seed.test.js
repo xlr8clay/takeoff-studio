@@ -40,7 +40,7 @@ test('seed counts', async () => {
 
 test('exactly five employees; only Clay has title/contact', async () => {
   const emps = await q('select * from employees order by first_name');
-  assert.deepEqual(emps.map((e) => e.first_name), ['Charles', 'Clay', 'Darren', 'Joe', 'Zach']);
+  assert.deepEqual(emps.map((e) => e.first_name), ['Charles', 'Clay', 'Darrin', 'Joe', 'Zach']);
   for (const e of emps) {
     const filled = Object.entries(e).filter(([k, v]) => v !== null && !['id', 'first_name', 'created_at', 'updated_at'].includes(k)).map(([k]) => k);
     if (e.first_name === 'Clay') {

@@ -62,10 +62,13 @@ const EMPLOYEES = [
     id: 'emp-clay', first_name: 'Clay', last_name: 'Deering', display_name: 'Clay Deering', title_role: 'estimator',
     phone: '830-499-3860', email: 'cdeering@wpmcivil.com',
   },
-  { id: 'emp-darren', first_name: 'Darren' },
+  // The id keeps the old spelling so sessions and activity-log rows stay linked; the name is Darrin.
+  { id: 'emp-darren', first_name: 'Darrin' },
   { id: 'emp-joe', first_name: 'Joe' },
   { id: 'emp-charles', first_name: 'Charles' },
 ];
+
+const NAME_FIXES = [['emp-darren', 'Darren', 'Darrin']];
 
 const HEB_LIBRARY = { id: 'lib-heb-tx', name: 'HEB Production Rates (TX)', source: 'HEB', region_id: 'rgn-tx-heb', description: 'HEB crew production assumptions, Texas rates (verify for FL).' };
 const HEB_VERSION = {
@@ -91,6 +94,11 @@ async function seed(repo, { projectFile = BUCEES_FILE } = {}) {
   for (let i = 0; i < STANDARD_NOTES.length; i++) await ensure(repo, 'note_templates', { id: `note-std-${i + 1}`, template_name: 'standard', sort_order: i + 1, body: STANDARD_NOTES[i] });
   for (let i = 0; i < STANDARD_EXCLUSIONS.length; i++) await ensure(repo, 'exclusion_templates', { id: `excl-std-${i + 1}`, template_name: 'standard', sort_order: i + 1, body: STANDARD_EXCLUSIONS[i] });
   for (const e of EMPLOYEES) await ensure(repo, 'employees', e);
+  // Spelling corrections for rows seeded before the fix (ensure() never updates an existing row).
+  for (const [id, wrong, right] of NAME_FIXES) {
+    const row = await repo.get('employees', id, { includeDeleted: true });
+    if (row && row.first_name === wrong) await repo.update('employees', id, { first_name: right });
+  }
 
   // ---- library
   const lib = await repo.getLibrary();

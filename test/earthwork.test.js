@@ -128,7 +128,7 @@ test('the employee list is still exactly the five seeded people', async () => {
   const repo = await freshRepo({ withSeed: true });
   try {
     const rows = await repo.handle.query('select first_name, last_name from employees order by first_name');
-    assert.deepEqual(rows.map((r) => r.first_name), ['Charles', 'Clay', 'Darren', 'Joe', 'Zach']);
+    assert.deepEqual(rows.map((r) => r.first_name), ['Charles', 'Clay', 'Darrin', 'Joe', 'Zach']);
     const blob = JSON.stringify(rows);
     const banned = ['Jack', 'Cook'].join(' ');
     assert.equal(blob.toLowerCase().includes(banned.toLowerCase()), false);

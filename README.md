@@ -35,7 +35,7 @@ npm run db:reset                 # local only: wipe, migrate, seed
 
 ## What is stored
 
-Company data (shared): HEB rate library (81 rates), crews, vendor quotes, FDOT prices, exclusion and note templates, and the five employees Zach, Clay Deering (Estimator), Darren, Joe, and Charles. Anything not known about the other four stays null.
+Company data (shared): HEB rate library (81 rates), crews, vendor quotes, FDOT prices, exclusion and note templates, and the five employees Zach, Clay Deering (Estimator), Darrin, Joe, and Charles. Anything not known about the other four stays null.
 
 Studio data (per job): the grid file, aerial and grading PNGs, subgrade depths, fill factors, mass balance, grading rows, equipment and crew card, trucking and material lines. Every save goes through `db/repo.js` and writes an `activity_log` row in the same transaction. The version `rev` is an optimistic lock; a stale save returns 409 and the page reloads.
 

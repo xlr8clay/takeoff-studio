@@ -120,7 +120,7 @@ New ids are created (rev 1); ids already in the DB are overwritten as a new rev 
 Roles (admin, estimator, viewer); WPM Construction (5415 McKinney Falls Pkwy., Austin, TX 78744; contact Clay
 Deering 830-499-3860, cdeering@wpmcivil.com); regions TX-HEB, FL-SWFL, FDOT-MA10; 15 generic civil cost codes;
 library (81 HEB rates in version "TX", 12 crews, 22 quotes, 89 FDOT prices); 3 standard notes, 13 standard
-exclusions; exactly five employees - Zach, Clay Deering (estimator + contact info), Darren, Joe, Charles (first
+exclusions; exactly five employees - Zach, Clay Deering (estimator + contact info), Darrin, Joe, Charles (first
 name only, everything else NULL, including status); Buc-ee's #49 with Clay as estimator, rates snapshotted, bid
 snapshot, outcome `pending` (all decision fields NULL).
 

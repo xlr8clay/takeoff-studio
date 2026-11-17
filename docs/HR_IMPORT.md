@@ -33,6 +33,6 @@ node db/import-employees.js path/to/hr-export.csv
 
 Fixture: `test/fixtures/hr-employees.sample.csv` (placeholder test rows - not real people).
 
-The five seeded employees (Zach, Clay Deering, Darren, Joe, Charles) have no `external_hr_id`/`employee_no` yet.
+The five seeded employees (Zach, Clay Deering, Darrin, Joe, Charles) have no `external_hr_id`/`employee_no` yet.
 Before the first real import, set those keys on the existing rows (e.g. `repo.upsertEmployee({ id: 'emp-zach', external_hr_id: '...' })`)
 so the import updates them instead of creating duplicates.
