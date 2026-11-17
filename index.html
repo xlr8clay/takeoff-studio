@@ -1829,6 +1829,7 @@ ${text}`;
         payload.rev = created.rev; payload.grid = undefined;
       }
       if (sendRates) { const saved = await apiFetch("/api/studio/rates", { method: "PUT", body: JSON.stringify({ rev: api.ratesRev, document: B }) }); api.ratesRev = saved.rev; }
+      payload.rev = job.rev;      // the revision this browser holds now, not when the edit was queued (an earlier save may have moved it)
       const saved = await apiFetch("/api/studio/jobs/" + encodeURIComponent(job.studioKey), { method: "PUT", body: JSON.stringify(payload) });
       job.rev = saved.rev; job.gridDirty = false;
       job.savedEditor = { factors: payload.factors, utilities: payload.utilities, utilParams: payload.utilParams };
@@ -1846,7 +1847,20 @@ ${text}`;
       else showPersist(api.mode === "db" ? "Not saved — " + e.message : "Local mode — this browser only");
     }
   }
-  function scheduleSync() { if (!persistArmed || !api.on || api.readOnly || !J) return; const job = J; const payload = collectState(); const sendRates = ratesDirty; ratesDirty = false; clearTimeout(job._timer); job._timer = setTimeout(() => pushSync(job, payload, sendRates), 600); }
+  // Saves for one job go out one at a time: a save sent while the previous one was still in flight carried a stale
+  // revision, the server answered 409, and the page reloaded the job and dropped the newest edit.
+  let pendingSaves = 0;
+  function scheduleSync() {
+    if (!persistArmed || !api.on || api.readOnly || !J) return;
+    const job = J; const payload = collectState(); const sendRates = ratesDirty; ratesDirty = false;
+    if (!job._timer) pendingSaves++;
+    clearTimeout(job._timer);
+    job._timer = setTimeout(() => {
+      job._timer = null;
+      job._chain = (job._chain || Promise.resolve()).then(() => pushSync(job, payload, sendRates)).finally(() => { pendingSaves--; });
+    }, 600);
+  }
+  window.addEventListener("beforeunload", (e) => { if (pendingSaves > 0) { e.preventDefault(); e.returnValue = "Changes are still saving."; } });
   const saveBid = (scope) => { const own = !!(J && J.bid); if (own && JB && BJname === J.name) JB.items.__rates = B; try { if (!own) localStorage.setItem(BKEY, JSON.stringify(B)); if (J && JB) localStorage.setItem("wpm_bid_v1:" + J.name, JSON.stringify(JB)); } catch (e) {} if (scope !== "job" && !own) ratesDirty = true; scheduleSync(); };
   function applySaved(job) {
     const ed = job.savedEditor;
