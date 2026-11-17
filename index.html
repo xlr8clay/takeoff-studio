@@ -379,8 +379,14 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       <button type="button" data-a="copy">Copy bid tables</button>
       <button type="button" data-a="reset">Reset to example rates</button>
     </div>
-    <h3>Labor burden and work week</h3>
+    <h3>Labor: wages, burden and work week</h3>
     <div class="ctl3d" style="margin:6px 0 4px">
+      <label>Operator <input type="number" id="wage-op" data-t="wage" data-k="op" data-f="wage|op" min="0" step="0.01" style="width:70px"> $ / hr</label>
+      <label>Laborer <input type="number" id="wage-lab" data-t="wage" data-k="lab" data-f="wage|lab" min="0" step="0.01" style="width:70px"> $ / hr</label>
+      <label>Foreman <input type="number" id="wage-fore" data-t="wage" data-k="fore" data-f="wage|fore" min="0" step="0.01" style="width:70px"> $ / hr</label>
+      <span class="hint" style="margin:0">base wages, before overtime and burden</span>
+    </div>
+    <div class="ctl3d" style="margin:0 0 4px">
       <label>Work week <input type="number" id="lab-week" data-t="lab" data-k="week" data-f="lab|week" min="0" max="100" step="1" style="width:56px"> hr</label>
       <label>Overtime after <input type="number" id="lab-otAfter" data-t="lab" data-k="otAfter" data-f="lab|otAfter" min="0" max="100" step="1" style="width:56px"> hr at <input type="number" id="lab-otMult" data-t="lab" data-k="otMult" data-f="lab|otMult" min="1" max="3" step="0.05" style="width:56px"> x</label>
     </div>
@@ -392,12 +398,12 @@ td.num { font-family: var(--mono); font-size: 12.5px }
         of <select id="lab-glBasis" data-t="lab" data-k="glBasis" data-f="lab|glBasis"><option value="payroll">payroll</option><option value="revenue">the contract</option></select></label>
     </div>
     <p class="hint" id="lab-sum" style="margin:0 0 4px"></p>
-    <p class="hint" style="margin:0 0 6px">Applies to the laborers in each crew; enter base wages in the crew table. Operated equipment rates already include the operator and are not burdened again. FUTA and SUTA stop at their wage bases (FUTA $7,000, Texas SUTA $9,000 per worker), so enter the effective percentage for your payroll. Workers' comp: your class code rate per $100 of payroll is the same number as a percent.</p>
+    <p class="hint" style="margin:0 0 6px">Each crew's operators, laborers and foremen are priced at these wages (a crew can set its own laborer rate), then overtime and burden are added. Equipment rates that already include the operator: leave that crew's Operators at 0. Enter bare equipment rates and count the operators to price operators apart. FUTA and SUTA stop at their wage bases (FUTA $7,000, Texas SUTA $9,000 per worker), so enter the effective percentage for your payroll. Workers' comp: your class code rate per $100 of payroll is the same number as a percent.</p>
     <h3>Equipment</h3>
     <div class="tablebox"><table id="bideq"><thead><tr><th>Equipment</th><th>Rate $ / hr</th><th></th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="addeq">Add equipment</button></p>
     <h3>Crews</h3>
-    <div class="tablebox"><table id="bidcrew"><thead><tr><th>Crew</th><th>Equipment in the crew</th><th>Laborers</th><th>Labor $ / hr</th><th>Crew $ / hr</th><th>Production</th><th>Per hour</th><th>Cost per unit</th><th></th></tr></thead><tbody></tbody></table></div>
+    <div class="tablebox"><table id="bidcrew"><thead><tr><th>Crew</th><th>Equipment in the crew</th><th>Operators</th><th>Laborers</th><th>Foremen</th><th title="Leave blank to use the company laborer wage">Laborer $ / hr</th><th>Crew $ / hr</th><th>Production</th><th>Per hour</th><th>Cost per unit</th><th></th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="addcrew">Add crew</button></p>
     <h3>Trucking by the load</h3>
     <div class="tablebox"><table id="bidtruck"><thead><tr><th>Haul</th><th>Quantity from</th><th>Quantity</th><th>Per load</th><th>Loads</th><th>$ per load</th><th>Cost</th><th></th></tr></thead><tbody></tbody></table></div>
@@ -1888,11 +1894,22 @@ ${text}`;
   // Operated equipment rates already carry their operator and are not burdened again.
   const LABOR_DEFAULT = { week: 60, otAfter: 40, otMult: 1.5, futa: 0.6, suta: 2.7, wc: 0, gl: 0, glBasis: "payroll" };
   const LABOR_OFF = { week: 40, otAfter: 40, otMult: 1.5, futa: 0, suta: 0, wc: 0, gl: 0, glBasis: "payroll" };
-  const labor = () => { if (!B.labor) B.labor = Object.assign({}, J && J.bid ? LABOR_OFF : LABOR_DEFAULT); return B.labor; };
+  const labor = () => {
+    if (!B.labor) B.labor = Object.assign({}, J && J.bid ? LABOR_OFF : LABOR_DEFAULT);
+    if (!B.labor.wages) {
+      // first open after operators and foremen were split out: the company laborer wage takes the crews' shared rate
+      // and those crews drop their copy; crews with their own rate (a job's HeavyBid set) keep it as an override
+      const rates = B.crews.map(c => c.laborRate).filter(v => v != null && v > 0), common = rates.length && rates.every(v => v === rates[0]) ? rates[0] : null;
+      B.labor.wages = { op: 32, lab: common || 22, fore: 40 };
+      if (common && !(J && J.bid)) B.crews.forEach(c => { if (c.laborRate === common || !c.laborRate) delete c.laborRate; });
+    }
+    return B.labor;
+  };
   const otFactor = (L) => { const w = L.week || 0, a = L.otAfter || 0; return w > a && w > 0 ? (a + (w - a) * (L.otMult || 1)) / w : 1; };
   const burdenPct = (L) => (L.futa || 0) + (L.suta || 0) + (L.wc || 0) + (L.glBasis === "payroll" ? (L.gl || 0) : 0);
   const laborFactor = () => { const L = labor(); return otFactor(L) * (1 + burdenPct(L) / 100); };
-  const crewLabor = (c) => (c.labor || 0) * (c.laborRate || 0) * laborFactor();
+  const crewLabor = (c) => { const W = labor().wages, lr = c.laborRate != null && c.laborRate !== "" ? c.laborRate : W.lab;
+    return ((c.ops || 0) * (W.op || 0) + (c.labor || 0) * (lr || 0) + (c.fore || 0) * (W.fore || 0)) * laborFactor(); };
   const crewRate = (c) => c.eq.reduce((a, m) => { const q = B.equip.find(x => x.id === m.id); return a + (q ? q.rate * m.n : 0); }, 0) + crewLabor(c);
   const money = (v, d) => "$" + fmt(v, d || 0);
   const TSRC = [["import", "Import, loose CY"], ["export", "Export, loose CY"], ["strip", "Stripping, CY"], ["uspoil", "Utility spoils, CY"], ["uagg", "Utility aggregate, tons"], ["manual", "Entered by hand"]];
@@ -1935,7 +1952,8 @@ ${text}`;
     $("bidcrew").tBodies[0].innerHTML = B.crews.map((c, i) => { const r = crewRate(c);
       const mem = c.eq.map((m, j) => { const q = B.equip.find(x => x.id === m.id); return q ? `<span class="chip">${m.n} x ${bEsc(q.name)}${del("delmem", i, j)}</span>` : ""; }).join("");
       return `<tr><td>${inp("crew", i, "name", c.name, 170, txt)}</td><td>${mem} <select data-t="crew" data-i="${i}" data-k="add"><option value="">+ equipment</option>${B.equip.map(q => `<option value="${q.id}">${bEsc(q.name)}</option>`).join("")}</select></td>` +
-        `<td class="num">${inp("crew", i, "labor", c.labor, 50)}</td><td class="num">${inp("crew", i, "laborRate", c.laborRate, 64)}</td><td class="num">${money(r)}</td><td class="num">${inp("crew", i, "prod", c.prod, 70)}</td>` +
+        `<td class="num">${inp("crew", i, "ops", c.ops || 0, 46)}</td><td class="num">${inp("crew", i, "labor", c.labor || 0, 46)}</td><td class="num">${inp("crew", i, "fore", c.fore || 0, 46)}</td>` +
+        `<td class="num"><input type="number" min="0" step="any" data-t="crew" data-i="${i}" data-k="laborRate" data-f="crew|${i}|laborRate" value="${c.laborRate != null ? bEsc(c.laborRate) : ""}" placeholder="${fmt(labor().wages.lab, 2)}" title="Blank = the company laborer wage" style="width:64px"></td><td class="num">${money(r)}</td><td class="num">${inp("crew", i, "prod", c.prod, 70)}</td>` +
         `<td><select data-t="crew" data-i="${i}" data-k="unit" data-f="crew|${i}|unit">${BUNITS.map(u => `<option${u === c.unit ? " selected" : ""}>${u}</option>`).join("")}</select> / hr</td><td class="num">${c.prod > 0 ? money(r / c.prod, 2) : ""}</td><td>${del("delcrew", i)}</td></tr>`; }).join("");
     let truckTot = 0, loadTot = 0;
     $("bidtruck").tBodies[0].innerHTML = trucks.map((r, i) => { const q = truckQty(r), loads = r.per > 0 ? Math.ceil(q / r.per - 1e-9) : 0, cost = loads * (r.rate || 0); truckTot += cost; loadTot += loads;
@@ -1946,6 +1964,7 @@ ${text}`;
     const mo = 1 + (B.ovh || 0) / 100, m = mo * (1 + (B.markup || 0) / 100); let direct = 0, leT = 0, matT = 0, hrsT = 0, wageT = 0;
     const L = labor(), lf = laborFactor();
     for (const k of ["week", "otAfter", "otMult", "futa", "suta", "wc", "gl", "glBasis"]) { const el = $("lab-" + k); if (el && document.activeElement !== el) el.value = L[k]; }
+    for (const k of ["op", "lab", "fore"]) { const el = $("wage-" + k); if (el && document.activeElement !== el) el.value = L.wages[k]; }
     $("lab-sum").textContent = `Laborer wages x ${fmt(lf, 3)}: overtime ${fmt((otFactor(L) - 1) * 100, 1)}% (${fmt(L.week, 0)} hr week, over ${fmt(L.otAfter, 0)} at ${fmt(L.otMult, 2)}x), burden ${fmt(burdenPct(L), 2)}% of payroll${L.glBasis === "revenue" && L.gl ? `; GL ${fmt(L.gl, 2)}% of the contract is added after markup` : ""}.`;
     const body = items.map(it => { const o = JB.items[it.key] || {}, cust = it.ci != null, qty = !cust && o.qty != null ? o.qty : it.qty, cid = o.crew != null ? o.crew : (J.bid && J.bid.crewFor && J.bid.crewFor[it.key] != null ? J.bid.crewFor[it.key] : it.crew), c = B.crews.find(x => x.id === cid);
       const hrs = c && c.prod > 0 ? qty / c.prod : 0, le = c ? hrs * crewRate(c) : 0, mat = (o.mat || 0) * qty, d = le + mat; direct += d; leT += le; matT += mat; hrsT += hrs; if (c) wageT += hrs * crewLabor(c);
@@ -1975,18 +1994,20 @@ ${text}`;
     else if (d.t === "eq") B.equip[+d.i][d.k] = d.k === "name" ? t.value : num();
     else if (d.t === "crew") { const c = B.crews[+d.i];
       if (d.k === "add") { if (t.value) { const mm = c.eq.find(x => x.id === t.value); if (mm) mm.n++; else c.eq.push({ id: t.value, n: 1 }); } }
+      else if (d.k === "laborRate" && t.value === "") delete c.laborRate;
       else c[d.k] = (d.k === "name" || d.k === "unit") ? t.value : num(); }
+    else if (d.t === "wage") labor().wages[d.k] = num();
     else if (d.t === "truck") { if (!JB.trucks) JB.trucks = bidTruckDefaults(); JB.trucks[+d.i][d.k] = (d.k === "desc" || d.k === "src") ? t.value : num(); }
     else if (d.t === "cust") JB.custom[+d.i][d.k] = d.k === "qty" ? num() : t.value;
     else if (d.t === "item") { const o = JB.items[d.i] = JB.items[d.i] || {}; if (d.k === "qty") o.qty = t.value === "" ? null : num(); else if (d.k === "crew") o.crew = t.value; else if (d.k === "mat") o.mat = num(); }
-    B.touched = true; saveBid(d.t === "ovh" || d.t === "mk" || d.t === "lab" || d.t === "eq" || d.t === "crew" ? "rates" : "job");
+    B.touched = true; saveBid(d.t === "ovh" || d.t === "mk" || d.t === "lab" || d.t === "wage" || d.t === "eq" || d.t === "crew" ? "rates" : "job");
     setTimeout(() => { const ae = document.activeElement, f = ae && ae.dataset ? ae.dataset.f : null; renderBid();
       if (f) { const el = [...$("bidbox").querySelectorAll("[data-f]")].find(x => x.dataset.f === f); if (el) { el.focus(); if (el.select) el.select(); } } }, 0); });
   $("bidbox").addEventListener("click", (e) => { const t = e.target.closest("[data-a]"); if (!t || !J || !JB) return; const a = t.dataset.a, i = +t.dataset.i;
     const own = () => { if (!JB.trucks) JB.trucks = bidTruckDefaults(); };
     if (a === "addeq") B.equip.push({ id: "e" + (B.seq++), name: "New equipment", rate: 0 });
     else if (a === "deleq") { const id = B.equip[i].id; B.equip.splice(i, 1); B.crews.forEach(c => { c.eq = c.eq.filter(mm => mm.id !== id); }); }
-    else if (a === "addcrew") B.crews.push({ id: "c" + (B.seq++), name: "New crew", eq: [], labor: 0, laborRate: 0, prod: 0, unit: "CY" });
+    else if (a === "addcrew") B.crews.push({ id: "c" + (B.seq++), name: "New crew", eq: [], ops: 0, labor: 0, fore: 0, prod: 0, unit: "CY" });
     else if (a === "delcrew") B.crews.splice(i, 1);
     else if (a === "delmem") B.crews[i].eq.splice(+t.dataset.j, 1);
     else if (a === "addtruck") { own(); JB.trucks.push({ desc: "Trucking", src: "manual", qty: 0, per: 14, rate: 0 }); }
