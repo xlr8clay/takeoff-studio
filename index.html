@@ -379,6 +379,20 @@ td.num { font-family: var(--mono); font-size: 12.5px }
       <button type="button" data-a="copy">Copy bid tables</button>
       <button type="button" data-a="reset">Reset to example rates</button>
     </div>
+    <h3>Labor burden and work week</h3>
+    <div class="ctl3d" style="margin:6px 0 4px">
+      <label>Work week <input type="number" id="lab-week" data-t="lab" data-k="week" data-f="lab|week" min="0" max="100" step="1" style="width:56px"> hr</label>
+      <label>Overtime after <input type="number" id="lab-otAfter" data-t="lab" data-k="otAfter" data-f="lab|otAfter" min="0" max="100" step="1" style="width:56px"> hr at <input type="number" id="lab-otMult" data-t="lab" data-k="otMult" data-f="lab|otMult" min="1" max="3" step="0.05" style="width:56px"> x</label>
+    </div>
+    <div class="ctl3d" style="margin:0 0 4px">
+      <label>FUTA <input type="number" id="lab-futa" data-t="lab" data-k="futa" data-f="lab|futa" min="0" max="20" step="0.01" style="width:64px"> %</label>
+      <label>SUTA <input type="number" id="lab-suta" data-t="lab" data-k="suta" data-f="lab|suta" min="0" max="20" step="0.01" style="width:64px"> %</label>
+      <label>Workers' comp <input type="number" id="lab-wc" data-t="lab" data-k="wc" data-f="lab|wc" min="0" max="100" step="0.01" style="width:64px"> % of payroll</label>
+      <label>General liability <input type="number" id="lab-gl" data-t="lab" data-k="gl" data-f="lab|gl" min="0" max="50" step="0.01" style="width:64px"> %
+        of <select id="lab-glBasis" data-t="lab" data-k="glBasis" data-f="lab|glBasis"><option value="payroll">payroll</option><option value="revenue">the contract</option></select></label>
+    </div>
+    <p class="hint" id="lab-sum" style="margin:0 0 4px"></p>
+    <p class="hint" style="margin:0 0 6px">Applies to the laborers in each crew; enter base wages in the crew table. Operated equipment rates already include the operator and are not burdened again. FUTA and SUTA stop at their wage bases (FUTA $7,000, Texas SUTA $9,000 per worker), so enter the effective percentage for your payroll. Workers' comp: your class code rate per $100 of payroll is the same number as a percent.</p>
     <h3>Equipment</h3>
     <div class="tablebox"><table id="bideq"><thead><tr><th>Equipment</th><th>Rate $ / hr</th><th></th></tr></thead><tbody></tbody></table></div>
     <p style="margin:6px 0 0"><button type="button" data-a="addeq">Add equipment</button></p>
@@ -1869,7 +1883,17 @@ ${text}`;
     if (ed && ed.factors && state) { const f = ed.factors; ["strip", "shrink", "swell", "moist", "overbuild", "dz"].forEach(k => { if (f[k] != null) state[k] = f[k]; }); if (Array.isArray(f.sec)) state.sec = f.sec.map(v => v == null ? 0 : v); }
     const oc = $("bid-outcome"); if (oc) { oc.value = job.outcome || ""; $("outcomelabel").hidden = !api.on; }
   }
-  const crewRate = (c) => c.eq.reduce((a, m) => { const q = B.equip.find(x => x.id === m.id); return a + (q ? q.rate * m.n : 0); }, 0) + (c.labor || 0) * (c.laborRate || 0);
+  // Labor burden and work week (company-wide, kept in the rate card as B.labor). Laborer wages are raised for overtime
+  // past otAfter hours at otMult, then for payroll burden: FUTA, SUTA, workers' comp, and GL when GL is rated on payroll.
+  // Operated equipment rates already carry their operator and are not burdened again.
+  const LABOR_DEFAULT = { week: 60, otAfter: 40, otMult: 1.5, futa: 0.6, suta: 2.7, wc: 0, gl: 0, glBasis: "payroll" };
+  const LABOR_OFF = { week: 40, otAfter: 40, otMult: 1.5, futa: 0, suta: 0, wc: 0, gl: 0, glBasis: "payroll" };
+  const labor = () => { if (!B.labor) B.labor = Object.assign({}, J && J.bid ? LABOR_OFF : LABOR_DEFAULT); return B.labor; };
+  const otFactor = (L) => { const w = L.week || 0, a = L.otAfter || 0; return w > a && w > 0 ? (a + (w - a) * (L.otMult || 1)) / w : 1; };
+  const burdenPct = (L) => (L.futa || 0) + (L.suta || 0) + (L.wc || 0) + (L.glBasis === "payroll" ? (L.gl || 0) : 0);
+  const laborFactor = () => { const L = labor(); return otFactor(L) * (1 + burdenPct(L) / 100); };
+  const crewLabor = (c) => (c.labor || 0) * (c.laborRate || 0) * laborFactor();
+  const crewRate = (c) => c.eq.reduce((a, m) => { const q = B.equip.find(x => x.id === m.id); return a + (q ? q.rate * m.n : 0); }, 0) + crewLabor(c);
   const money = (v, d) => "$" + fmt(v, d || 0);
   const TSRC = [["import", "Import, loose CY"], ["export", "Export, loose CY"], ["strip", "Stripping, CY"], ["uspoil", "Utility spoils, CY"], ["uagg", "Utility aggregate, tons"], ["manual", "Entered by hand"]];
   const BUNITS = ["CY", "SY", "LF", "EA", "TON", "SF", "LS"];
@@ -1919,9 +1943,12 @@ ${text}`;
         `<td class="num">${r.src === "manual" ? inp("truck", i, "qty", r.qty || 0, 80) : fmt(q)}</td><td class="num">${inp("truck", i, "per", r.per, 60)}</td><td class="num">${fmt(loads)}</td><td class="num">${inp("truck", i, "rate", r.rate, 70)}</td><td class="num">${money(cost)}</td><td>${del("deltruck", i)}</td></tr>`; }).join("") +
       `<tr class="total"><td>All trucking</td><td></td><td></td><td></td><td class="num">${fmt(loadTot)}</td><td></td><td class="num">${money(truckTot)}</td><td></td></tr>`;
     const items = bidItems().concat(JB.custom.map((c, i) => ({ key: c.key, desc: c.desc, unit: c.unit, qty: c.qty || 0, crew: "", ci: i })));
-    const mo = 1 + (B.ovh || 0) / 100, m = mo * (1 + (B.markup || 0) / 100); let direct = 0, leT = 0, matT = 0;
+    const mo = 1 + (B.ovh || 0) / 100, m = mo * (1 + (B.markup || 0) / 100); let direct = 0, leT = 0, matT = 0, hrsT = 0, wageT = 0;
+    const L = labor(), lf = laborFactor();
+    for (const k of ["week", "otAfter", "otMult", "futa", "suta", "wc", "gl", "glBasis"]) { const el = $("lab-" + k); if (el && document.activeElement !== el) el.value = L[k]; }
+    $("lab-sum").textContent = `Laborer wages x ${fmt(lf, 3)}: overtime ${fmt((otFactor(L) - 1) * 100, 1)}% (${fmt(L.week, 0)} hr week, over ${fmt(L.otAfter, 0)} at ${fmt(L.otMult, 2)}x), burden ${fmt(burdenPct(L), 2)}% of payroll${L.glBasis === "revenue" && L.gl ? `; GL ${fmt(L.gl, 2)}% of the contract is added after markup` : ""}.`;
     const body = items.map(it => { const o = JB.items[it.key] || {}, cust = it.ci != null, qty = !cust && o.qty != null ? o.qty : it.qty, cid = o.crew != null ? o.crew : (J.bid && J.bid.crewFor && J.bid.crewFor[it.key] != null ? J.bid.crewFor[it.key] : it.crew), c = B.crews.find(x => x.id === cid);
-      const hrs = c && c.prod > 0 ? qty / c.prod : 0, le = c ? hrs * crewRate(c) : 0, mat = (o.mat || 0) * qty, d = le + mat; direct += d; leT += le; matT += mat;
+      const hrs = c && c.prod > 0 ? qty / c.prod : 0, le = c ? hrs * crewRate(c) : 0, mat = (o.mat || 0) * qty, d = le + mat; direct += d; leT += le; matT += mat; hrsT += hrs; if (c) wageT += hrs * crewLabor(c);
       const k = bEsc(it.key), warn = c && c.unit !== it.unit ? ` <span class="bwarn" title="This crew produces in ${c.unit} per hour but the item is measured in ${it.unit}">check unit</span>` : "";
       const name = cust ? inp("cust", it.ci, "desc", it.desc, 230, txt) + del("delitem", it.ci) : bEsc(it.desc);
       const unit = cust ? `<select data-t="cust" data-i="${it.ci}" data-k="unit" data-f="cust|${it.ci}|unit">${BUNITS.map(u => `<option${u === it.unit ? " selected" : ""}>${u}</option>`).join("")}</select>` : it.unit;
@@ -1929,17 +1956,22 @@ ${text}`;
       const crew = `<select data-t="item" data-i="${k}" data-k="crew" data-f="item|${k}|crew"><option value="">no crew</option>${B.crews.map(x => `<option value="${x.id}"${x.id === cid ? " selected" : ""}>${bEsc(x.name)} (${fmt(x.prod, x.prod < 1 ? 2 : x.prod < 10 ? 1 : 0)} ${x.unit}/hr)</option>`).join("")}</select>`;
       return `<tr><td>${name}</td><td class="num">${qcell}</td><td>${unit}</td><td>${crew}${warn}</td><td class="num">${hrs ? fmt(hrs, 1) : ""}</td><td class="num">${le ? money(le) : ""}</td><td class="num">${inp("item", it.key, "mat", o.mat || "", 76)}</td><td class="num">${mat ? money(mat) : ""}</td><td class="num">${money(d)}</td><td class="num">${money(d * m)}</td><td class="num">${qty > 0 && d ? money(d * m / qty, 2) : ""}</td></tr>`; }).join("");
     direct += truckTot;
+    // GL rated on revenue: grossed up so the premium is L.gl percent of the final contract including itself
+    const glRev = L.glBasis === "revenue" && L.gl > 0 && L.gl < 100 ? direct * m * (L.gl / 100) / (1 - L.gl / 100) : 0;
     $("biditems").tBodies[0].innerHTML = body +
       `<tr><td>Trucking, from the table above</td><td class="num">${fmt(loadTot)}</td><td>loads</td><td colspan="5"></td><td class="num">${money(truckTot)}</td><td class="num">${money(truckTot * m)}</td><td class="num">${loadTot ? money(truckTot * m / loadTot, 2) : ""}</td></tr>` +
       `<tr class="sub"><td>Direct cost</td><td colspan="4"></td><td class="num">${money(leT)}</td><td></td><td class="num">${money(matT)}</td><td class="num">${money(direct)}</td><td></td><td></td></tr>` +
       `<tr class="sub"><td>Overhead and indirect, ${fmt(B.ovh || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (mo - 1))}</td><td></td></tr>` +
       `<tr class="sub"><td>Markup, ${fmt(B.markup || 0, 1)}%</td><td colspan="8"></td><td class="num">${money(direct * (m - mo))}</td><td></td></tr>` +
-      `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(direct * m)}</td><td></td></tr>`;
-    window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = direct * m;
+      (glRev ? `<tr class="sub"><td>General liability, ${fmt(L.gl, 2)}% of the contract</td><td colspan="8"></td><td class="num">${money(glRev)}</td><td></td></tr>` : "") +
+      `<tr class="total"><td>Total bid</td><td colspan="8"></td><td class="num">${money(direct * m + glRev)}</td><td></td></tr>` +
+      `<tr class="sub"><td>Crew time</td><td colspan="10">${fmt(hrsT, 0)} crew hours = ${fmt(L.week > 0 ? hrsT / L.week : 0, 1)} crew weeks at ${fmt(L.week, 0)} hr; burdened laborer cost in the direct cost ${money(wageT)}</td></tr>`;
+    window.__wpm.lastDirect = direct; window.__wpm.lastBidTotal = direct * m + glRev;
   }
   $("bidbox").addEventListener("change", (e) => { const t = e.target, d = t.dataset; if (!d.t || !J || !JB) return; const num = () => parseFloat(t.value) || 0;
     if (d.t === "ovh") B.ovh = num();
     else if (d.t === "mk") B.markup = num();
+    else if (d.t === "lab") labor()[d.k] = d.k === "glBasis" ? t.value : num();
     else if (d.t === "eq") B.equip[+d.i][d.k] = d.k === "name" ? t.value : num();
     else if (d.t === "crew") { const c = B.crews[+d.i];
       if (d.k === "add") { if (t.value) { const mm = c.eq.find(x => x.id === t.value); if (mm) mm.n++; else c.eq.push({ id: t.value, n: 1 }); } }
@@ -1947,7 +1979,7 @@ ${text}`;
     else if (d.t === "truck") { if (!JB.trucks) JB.trucks = bidTruckDefaults(); JB.trucks[+d.i][d.k] = (d.k === "desc" || d.k === "src") ? t.value : num(); }
     else if (d.t === "cust") JB.custom[+d.i][d.k] = d.k === "qty" ? num() : t.value;
     else if (d.t === "item") { const o = JB.items[d.i] = JB.items[d.i] || {}; if (d.k === "qty") o.qty = t.value === "" ? null : num(); else if (d.k === "crew") o.crew = t.value; else if (d.k === "mat") o.mat = num(); }
-    B.touched = true; saveBid(d.t === "ovh" || d.t === "mk" || d.t === "eq" || d.t === "crew" ? "rates" : "job");
+    B.touched = true; saveBid(d.t === "ovh" || d.t === "mk" || d.t === "lab" || d.t === "eq" || d.t === "crew" ? "rates" : "job");
     setTimeout(() => { const ae = document.activeElement, f = ae && ae.dataset ? ae.dataset.f : null; renderBid();
       if (f) { const el = [...$("bidbox").querySelectorAll("[data-f]")].find(x => x.dataset.f === f); if (el) { el.focus(); if (el.select) el.select(); } } }, 0); });
   $("bidbox").addEventListener("click", (e) => { const t = e.target.closest("[data-a]"); if (!t || !J || !JB) return; const a = t.dataset.a, i = +t.dataset.i;
